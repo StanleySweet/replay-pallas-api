@@ -2,16 +2,15 @@
 -- Up
 --------------------------------------------------------------------------------
 
-
-CREATE TABLE replays (
-    "id" integer NOT NULL CONSTRAINT "PK_theater" PRIMARY KEY,
-    "match_id"  TEXT        NOT NULL UNIQUE,
-    "metadata" TEXT        NOT NULL,
-    "filedata" TEXT        NOT NULL,
-    "modification_date" timestamp
+Create Table local_ratings_configuration(
+  "id" integer NOT NULL CONSTRAINT "PK_local_ratings_configuration" PRIMARY KEY,
+  "section" text NOT NULL,
+  "key" text NOT NULL,
+  "value" text NOT NULL,
+  "modification_date" timestamp
   with
     time zone NULL DEFAULT (CURRENT_TIMESTAMP),
-    "creation_date" timestamp
+  "creation_date" timestamp
   with
     time zone NULL DEFAULT (CURRENT_TIMESTAMP)
 );
@@ -20,4 +19,4 @@ CREATE TABLE replays (
 -- Down
 --------------------------------------------------------------------------------
 
-DROP TABLE replays;
+DROP TABLE local_ratings_configuration;

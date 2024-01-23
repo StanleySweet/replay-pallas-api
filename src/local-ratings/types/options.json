@@ -1,0 +1,614 @@
+[
+    {
+	"label": "General",
+	"tooltip": "General settings.",
+        "options":
+	[
+	    {
+		"type": "boolean",
+		"label": "Show rating of players in the Match Setup page",
+		"tooltip": "The rating and the number of games played will be displayed next to each player's name in the Match Setup page.",
+                "config": "localratings.general.showmatchsetup",
+                "val": true
+	    },
+            {
+		"type": "boolean",
+		"label": "Show rating of players in the Lobby page",
+		"tooltip": "The rating and the number of games played will be displayed next to the player's name in the Player Profile area and in the Game Description area of the Lobby page.",
+                "config": "localratings.general.showplayerprofile",
+                "val": true
+	    },
+            {
+		"type": "boolean",
+		"label": "Show menu button in the game session menu",
+		"tooltip": "The game session menu will include a button to toggle the LocalRatings page.",
+                "config": "localratings.general.showmenubutton",
+                "val": true
+	    },
+            {
+                "type": "string",
+		"label": "Format rating and number of matches",
+		"tooltip": "Rating and number of matches will be displayed next to a player's name using this format. Use 'r' as a placeholder for the rating and 'm' for the number of matches.",
+                "config": "localratings.general.format",
+                "val": "(r/m)"
+	    }
+	]
+    },
+    {
+	"label": "Match Filters",
+	"tooltip": "Filter matches for the rating calculation.",
+        "options":
+	[
+	    {
+		"type": "number",
+		"label": "Minimum duration in minutes",
+		"tooltip": "Replays of games with smaller duration than the set value are not considered for the rating calculation.",
+                "config": "localratings.filter.duration",
+                "val": 10,
+		"min": 0
+	    },
+            {
+		"type": "number",
+		"label": "Minimum starting resources",
+		"tooltip": "Replays of games with starting resources smaller than the set value are not considered for the rating calculation.",
+                "config": "localratings.filter.minstartres",
+                "val": 0,
+		"min": 0
+	    },
+            {
+		"type": "number",
+		"label": "Maximum starting resources",
+		"tooltip": "Replays of games with starting resources larger than the set value are not considered for the rating calculation.",
+                "config": "localratings.filter.maxstartres",
+                "val": 50000,
+		"min": 0
+	    },
+            {
+		"type": "number",
+		"label": "Minimum population cap per player",
+		"tooltip": "Replays of games with population cap per player smaller than the set value are not considered for the rating calculation. Includes world population cap.",
+                "config": "localratings.filter.minpopcap",
+                "val": 0,
+		"min": 0
+	    },
+            {
+		"type": "number",
+		"label": "Maximum population cap per player",
+		"tooltip": "Replays of games with population cap per player larger than the set value are not considered for the rating calculation. Includes world population cap.",
+                "config": "localratings.filter.maxpopcap",
+                "val": 10000,
+		"min": 0
+	    },
+            {
+		"type": "boolean",
+		"label": "World population",
+		"tooltip": "Choose whether replays with the world population setting must be considered for the rating calculation or not.",
+                "config": "localratings.filter.worldpopulation",
+                "val": true
+	    },
+            {
+		"type": "boolean",
+		"label": "AI players",
+		"tooltip": "Choose whether replays of games with one or more AI players must be considered for the rating calculation or not.",
+                "config": "localratings.filter.aiplayers",
+                "val": false
+	    },
+            {
+		"type": "boolean",
+		"label": "Cheats Enabled",
+		"tooltip": "Choose whether replays of games with enabled cheats must be considered for the rating calculation or not.",
+                "config": "localratings.filter.cheatsenabled",
+                "val": false
+	    },
+            {
+		"type": "boolean",
+		"label": "Revealed Map",
+		"tooltip": "Choose whether replays of games with revealed map must be considered for the rating calculation or not.",
+                "config": "localratings.filter.revealedmap",
+                "val": false
+	    },
+            {
+		"type": "boolean",
+		"label": "Explored Map",
+		"tooltip": "Choose whether replays of games with explored map must be considered for the rating calculation or not.",
+                "config": "localratings.filter.exploredmap",
+                "dependencies": ["localratings.filter.revealedmap"],
+                "val": false
+	    },
+            {
+		"type": "boolean",
+		"label": "Nomad",
+		"tooltip": "Choose whether replays in nomad mode must be considered for the rating calculation or not.",
+                "config": "localratings.filter.nomad",
+                "val": true
+	    },
+            {
+		"type": "boolean",
+		"label": "Uneven teams",
+		"tooltip": "Choose whether replays of games with uneven number of players per team must be considered for the rating calculation or not.",
+                "config": "localratings.filter.uneventeams",
+                "val": true
+	    },
+            {
+		"type": "dropdown",
+		"label": "Minimum number of teams",
+		"tooltip": "Replays of games with number of teams smaller than the set value are not considered for the rating calculation.",
+                "config": "localratings.filter.minteams",
+                "val": "2",
+                "list": [
+		    {
+			"value": 2,
+			"label": "2"
+		    },
+                    {
+			"value": 3,
+			"label": "3"
+		    },
+                    {
+			"value": 4,
+			"label": "4"
+		    },
+                    {
+			"value": 5,
+			"label": "5"
+		    },
+                    {
+			"value": 6,
+			"label": "6"
+		    },
+                    {
+			"value": 7,
+			"label": "7"
+		    },
+                    {
+			"value": 8,
+			"label": "8"
+		    }
+                ]
+	    },
+            {
+		"type": "dropdown",
+		"label": "Maximum number of teams",
+		"tooltip": "Replays of games with number of teams larger than the set value are not considered for the rating calculation.",
+                "config": "localratings.filter.maxteams",
+                "val": "8",
+                "list": [
+		    {
+			"value": 2,
+			"label": "2"
+		    },
+                    {
+			"value": 3,
+			"label": "3"
+		    },
+                    {
+			"value": 4,
+			"label": "4"
+		    },
+                    {
+			"value": 5,
+			"label": "5"
+		    },
+                    {
+			"value": 6,
+			"label": "6"
+		    },
+                    {
+			"value": 7,
+			"label": "7"
+		    },
+                    {
+			"value": 8,
+			"label": "8"
+		    }
+                ]
+	    },
+            {
+		"type": "dropdown",
+		"label": "Minimum number of players",
+		"tooltip": "Replays of games with number of players smaller than the set value are not considered for the rating calculation.",
+                "config": "localratings.filter.minplayers",
+                "val": "2",
+		"list": [
+		    {
+			"value": 2,
+			"label": "2"
+		    },
+                    {
+			"value": 3,
+			"label": "3"
+		    },
+                    {
+			"value": 4,
+			"label": "4"
+		    },
+                    {
+			"value": 5,
+			"label": "5"
+		    },
+                    {
+			"value": 6,
+			"label": "6"
+		    },
+                    {
+			"value": 7,
+			"label": "7"
+		    },
+                    {
+			"value": 8,
+			"label": "8"
+		    }
+                ]
+	    },
+            {
+		"type": "dropdown",
+		"label": "Maximum number of players",
+		"tooltip": "Replays of games with number of players larger than the set value are not considered for the rating calculation.",
+                "config": "localratings.filter.maxplayers",
+                "val": "8",
+                "list": [
+		    {
+			"value": 2,
+			"label": "2"
+		    },
+                    {
+			"value": 3,
+			"label": "3"
+		    },
+                    {
+			"value": 4,
+			"label": "4"
+		    },
+                    {
+			"value": 5,
+			"label": "5"
+		    },
+                    {
+			"value": 6,
+			"label": "6"
+		    },
+                    {
+			"value": 7,
+			"label": "7"
+		    },
+                    {
+			"value": 8,
+			"label": "8"
+		    }
+                ]
+	    },
+            {
+		"type": "string",
+		"label": "Valid if played after date",
+		"tooltip": "Ignore replays older than the set date (use format YYYY-MM-DD).",
+                "config": "localratings.filter.recentdate",
+                "val": "1970-01-01"
+	    }
+	]
+    },
+    {
+	"label": "Player Filters",
+	"tooltip": "Filter players to show.",
+        "options":
+	[
+	    {
+		"type": "number",
+		"label": "Minimum number of games played",
+		"tooltip": "Players having played less games will not be shown.",
+                "config": "localratings.playerfilter.mingames",
+                "val": 1,
+		"min": 1
+	    },
+            {
+		"type": "boolean",
+		"label": "Limit maximum number of games played",
+		"tooltip": "If active, players having played more games than the set value will not be shown.",
+                "config": "localratings.playerfilter.limitmaxgames",
+                "val": false
+	    },
+            {
+		"type": "number",
+		"label": "Maximum number of games played",
+		"tooltip": "Players having larger number of games played will not be shown.",
+                "config": "localratings.playerfilter.maxgames",
+                "dependencies": ["localratings.playerfilter.limitmaxgames"],
+                "val": 1,
+		"min": 1
+	    },
+            {
+		"type": "boolean",
+		"label": "Limit minimum rating",
+		"tooltip": "If active, players having a rating lower than the set value will not be shown.",
+                "config": "localratings.playerfilter.limitminrating",
+                "val": false
+	    },
+            {
+		"type": "number",
+		"label": "Minimum rating",
+		"tooltip": "Players having a lower rating will not be shown.",
+                "config": "localratings.playerfilter.minrating",
+                "dependencies": ["localratings.playerfilter.limitminrating"],
+                "val": 0
+	    },
+            {
+		"type": "boolean",
+		"label": "Limit maximum rating",
+		"tooltip": "If active, players having a rating higher than the set value will not be shown.",
+                "config": "localratings.playerfilter.limitmaxrating",
+                "val": false
+	    },
+            {
+		"type": "number",
+		"label": "Maximum rating",
+		"tooltip": "Players having a higher rating will not be shown.",
+                "config": "localratings.playerfilter.maxrating",
+                "dependencies": ["localratings.playerfilter.limitmaxrating"],
+                "val": 0
+	    }
+	]
+    },
+    {
+	"label": "Mod Filters",
+	"tooltip": "Filter mods for the rating calculation.",
+        "options": []
+    },
+    {
+	"label": "Score Weights",
+	"tooltip": "Choose weights for score calculation.",
+	"options":
+	[
+            {
+		"type": "number",
+		"label": "Resources gathered",
+		"tooltip": "Weight given to gathered resources.",
+                "config": "localratings.weight.resourcesgathered",
+                "val": 0.1
+	    },
+            {
+		"type": "number",
+		"label": "Resources used",
+		"tooltip": "Weight given to used resources.",
+                "config": "localratings.weight.resourcesused",
+                "val": 0
+	    },
+            {
+		"type": "number",
+		"label": "Resources bought",
+		"tooltip": "Weight given to bought resources.",
+                "config": "localratings.weight.resourcesbought",
+                "val": 0
+	    },
+            {
+		"type": "number",
+		"label": "Resources sold",
+		"tooltip": "Weight given to sold resources.",
+                "config": "localratings.weight.resourcessold",
+                "val": 0
+	    },
+            {
+		"type": "number",
+		"label": "Tributes sent",
+		"tooltip": "Weight given to sent tributes.",
+                "config": "localratings.weight.tributessent",
+                "val": 0
+	    },
+            {
+		"type": "number",
+		"label": "Trade income",
+		"tooltip": "Weight given to trade income.",
+                "config": "localratings.weight.tradeincome",
+                "val": 0
+	    },
+            {
+		"type": "number",
+		"label": "Enemy units killed (value)",
+		"tooltip": "Weight given to the value of enemy units killed.",
+                "config": "localratings.weight.enemyunitskilledvalue",
+                "val": 0.1
+	    },
+            {
+		"type": "number",
+		"label": "Enemy units killed (number)",
+		"tooltip": "Weight given to the number of enemy units killed.",
+                "config": "localratings.weight.enemyunitskilled",
+                "val": 0
+	    },
+            {
+		"type": "number",
+		"label": "Enemy units captured (value)",
+		"tooltip": "Weight given to the value of enemy units captured.",
+                "config": "localratings.weight.unitscapturedvalue",
+                "val": 0.1
+	    },
+            {
+		"type": "number",
+		"label": "Enemy units captured (number)",
+		"tooltip": "Weight given to the number of enemy units captured.",
+                "config": "localratings.weight.unitscaptured",
+                "val": 0
+	    },
+            {
+		"type": "number",
+		"label": "Enemy buildings destroyed (value)",
+		"tooltip": "Weight given to the value of enemy buildings destroyed.",
+                "config": "localratings.weight.enemybuildingsdestroyedvalue",
+                "val": 0.1
+	    },
+            {
+		"type": "number",
+		"label": "Enemy buildings destroyed (number)",
+		"tooltip": "Weight given to the number of enemy buildings destroyed.",
+                "config": "localratings.weight.enemybuildingsdestroyed",
+                "val": 0
+	    },
+            {
+		"type": "number",
+		"label": "Enemy buildings captured (value)",
+		"tooltip": "Weight given to the value of enemy buildings captured.",
+                "config": "localratings.weight.buildingscapturedvalue",
+                "val": 0.1
+	    },
+            {
+		"type": "number",
+		"label": "Enemy buildings captured (number)",
+		"tooltip": "Weight given to the number of enemy buildings captured.",
+                "config": "localratings.weight.buildingscaptured",
+                "val": 0
+	    },
+            {
+	        "type": "number",
+		"label": "Percent map exploration",
+		"tooltip": "Weight given to the percent of map explored.",
+                "config": "localratings.weight.percentmapexplored",
+                "val": 10
+	    },
+            {
+	        "type": "number",
+		"label": "Percent map control",
+		"tooltip": "Weight given to the percent of map controlled.",
+                "config": "localratings.weight.percentmapcontrolled",
+                "val": 0
+	    },
+            {
+	        "type": "number",
+		"label": "Percent map control (peak)",
+		"tooltip": "Weight given to the percent of map controlled at its peak.",
+                "config": "localratings.weight.peakpercentmapcontrolled",
+                "val": 0
+	    },
+            {
+	        "type": "number",
+		"label": "Number of successful bribes",
+		"tooltip": "Weight given to the number of successful bribes.",
+                "config": "localratings.weight.successfulbribes",
+                "val": 0
+	    }
+        ]
+    },
+    {
+	"label": "Evolution Chart",
+	"tooltip": "Preferences for the Evolution chart.",
+        "options":
+	[
+            {
+		"type": "boolean",
+		"label": "Show current rating line",
+		"tooltip": "Choose whether the 'Current rating' line must be displayed in the player's chart or not.",
+                "config": "localratings.charts.showcurrent",
+                "val": true
+	    },
+            {
+		"type": "color",
+		"label": "Current rating line color",
+		"tooltip": "Set a color for the current rating line.",
+		"config": "localratings.charts.colorcurrent",
+                "dependencies": ["localratings.charts.showcurrent"],
+                "val": "150 20 20"
+	    },
+            {
+		"type": "boolean",
+		"label": "Show rating evolution graph",
+		"tooltip": "Choose whether the 'Rating evolution' graph must be displayed in the player's chart or not.",
+                "config": "localratings.charts.showevolution",
+                "val": true
+	    },
+            {
+		"type": "color",
+		"label": "Rating evolution graph color",
+		"tooltip": "Set a color for the rating evolution graph.",
+		"config": "localratings.charts.colorevolution",
+                "dependencies": ["localratings.charts.showevolution"],
+                "val": "50 170 170"
+	    },
+            {
+		"type": "boolean",
+		"label": "Show performance graph",
+		"tooltip": "Choose whether the 'Performance over time' graph must be displayed in the player's chart or not.",
+                "config": "localratings.charts.showperformance",
+                "val": true
+	    },
+            {
+		"type": "color",
+		"label": "Performance graph color",
+		"tooltip": "Set a color for the performance graph.",
+		"config": "localratings.charts.colorperformance",
+                "dependencies": ["localratings.charts.showperformance"],
+                "val": "86 180 31"
+	    },
+            {
+		"type": "boolean",
+		"label": "Show zero line",
+		"tooltip": "Choose whether the 'Zero line' must be displayed in the player's chart or not.",
+                "config": "localratings.charts.showzero",
+                "val": true
+	    },
+            {
+		"type": "color",
+		"label": "Zero line color",
+		"tooltip": "Set a color for the zero line.",
+		"config": "localratings.charts.colorzero",
+                "dependencies": ["localratings.charts.showzero"],
+                "val": "255 255 255"
+	    },
+            {
+		"type": "boolean",
+		"label": "Show vertical marker",
+		"tooltip": "Choose whether a vertical marker line must be displayed in the player's chart or not.",
+                "config": "localratings.charts.showmarker",
+                "val": true
+	    },
+            {
+		"type": "color",
+		"label": "Vertical marker color",
+		"tooltip": "Set a color for the vertical marker line.",
+		"config": "localratings.charts.colormarker",
+                "dependencies": ["localratings.charts.showmarker"],
+                "val": "209 174 132"
+	    }
+        ]
+    },
+    {
+	"label": "Distribution Chart",
+	"tooltip": "Preferences for the Distribution chart.",
+        "options":
+	[
+            {
+		"type": "color",
+		"label": "Low rating tiers color",
+		"tooltip": "Set a color for low rating histogram bins.",
+		"config": "localratings.distribution.colorleft",
+                "val": "100 100 140"
+	    },
+            {
+		"type": "color",
+		"label": "High rating tiers color",
+		"tooltip": "Set a color for high rating histogram bins.",
+		"config": "localratings.distribution.colorright",
+                "val": "100 140 100"
+	    },
+            {
+		"type": "color",
+		"label": "Selected player's tier color",
+		"tooltip": "Set a color for the histogram bin the current player lies in.",
+		"config": "localratings.distribution.colorcurrent",
+                "val": "200 180 0"
+	    },
+            {
+		"type": "number",
+		"label": "Number of columns",
+		"tooltip": "Set the number of histogram bins.",
+		"config": "localratings.distribution.bins",
+		"min": 1,
+		"max": 100,
+                "val": 10
+	    },
+            {
+		"type": "boolean",
+		"label": "Show average rating",
+		"tooltip": "Choose whether the vertical line representing the distribution's arithmetic mean must be displayed or not.",
+                "config": "localratings.distribution.showmean",
+                "val": true
+	    }
+	]
+    }
+]
