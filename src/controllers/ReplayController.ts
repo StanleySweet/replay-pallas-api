@@ -378,7 +378,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
     server.delete('my-replays', {
         "schema": {
-            "params": z.object({ "match_id": z.string() }),
+            "params": zodToJsonSchema(z.object({ "match_id": z.string() })),
             "response":{
                 "200": {
                     type: 'null',
