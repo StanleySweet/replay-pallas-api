@@ -20,6 +20,7 @@ import { EngineInstance } from "./types/Engine";
 import BetterDatabase from "better-sqlite3";
 import { init_LocalRatings } from "./local-ratings/utilities/functions_utility";
 import { LocalRatingsController } from "./controllers/LocalRatingsController";
+import { User } from "./types/User";
 
 const server = fastify({ logger: true });
 server.register(cors, {

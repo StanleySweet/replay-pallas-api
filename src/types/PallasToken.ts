@@ -16,7 +16,8 @@ const PallasUserTokenSchema = z.object({
 
 const PallasTokenPayloadSchema = z.object({
     role: z.nativeEnum(EUserRole),
-    nick: z.string()
+    nick: z.string(),
+    id: z.number()
 })
 
 

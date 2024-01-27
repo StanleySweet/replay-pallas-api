@@ -9,7 +9,7 @@ import { AddUserRequest, AddUserSchema, DeleteUserByIdRequest, GetUserByIdReques
 import { z } from "zod"
 import * as jose from 'jose'
 import EUserRole from "../enumerations/EUserRole";
-import { PallasUserToken, PallasUserTokenSchema } from "../types/PallasToken";
+import { PallasTokenPayload, PallasUserToken, PallasUserTokenSchema } from "../types/PallasToken";
 import { JOSE_ALG as alg, JOSE_SECRET } from "../project_globals";
 import { Replays } from "../types/Replay";
 import { mode } from "../Utils";
@@ -134,11 +134,13 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
             return;
         }
 
-        const jwt: string = await new jose.SignJWT({
+
+        const payload : PallasTokenPayload = {
             'role': users[0].role,
             'nick': users[0].nick,
-            'id': users[0].id,
-        })
+            'id': users[0].id
+        }
+        const jwt: string = await new jose.SignJWT(payload)
             .setProtectedHeader({ alg })
             .setIssuedAt()
             .setIssuer('urn:example:issuer')

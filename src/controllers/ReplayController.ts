@@ -8,12 +8,13 @@ import { FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { UploadReplayZipResponse, UploadReplayZipResponseSchema } from "../types/UploadReplayZipResponse";
 import { ReplayFileData } from "../types/ReplayFileData";
 import { Replay, ReplaySchema, Replays, ReplaysSchema, ToDbFormat } from "../types/Replay";
-import { UploadReplayCommandsResponse, UploadReplayCommandsResponseSchema } from "../types/UploadReplayCommandsResponse";
+import { UploadReplayCommandsResponseSchema } from "../types/UploadReplayCommandsResponse";
 import zodToJsonSchema from "zod-to-json-schema";
 import { ReplayMetaData } from "../types/ReplayMetaData";
 import { mode } from "../Utils";
 import { update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import snappy from 'snappy';
+import EUserRole from "../enumerations/EUserRole";
 
 const ReplayController: FastifyPluginCallback = (server, _, done) => {
     const schemaCommon = {
@@ -160,6 +161,12 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
+        if (request.claims.role < EUserRole.CONTRIBUTOR) {
+            reply.code(401);
+            return;
+        }
+
+
         const buf = await data.toBuffer();
         const zip = new AdmZip(buf);
         const zipEntries = zip.getEntries();
@@ -225,7 +232,11 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         for (const replay of newReplays)
             if (replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a) && await UploadReplayToDatabase(replay))
                 if (replay.metadata.matchID)
+                {
+                    // Add a link so users can delete the replays they uploaded
+                    await server.database.run("Insert Into replay_user_link (user_id, match_id) Values ($user_id, $matchId);", { "$user_id": request.claims.id, "$matchId": replay.metadata.matchID })
                     addedReplays.push(replay.metadata.matchID);
+                }
         response.AddedReplays = addedReplays;
         response.Success = addedReplays.length !== 0;
 
