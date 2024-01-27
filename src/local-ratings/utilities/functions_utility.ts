@@ -7,9 +7,8 @@ import { LocalRatingsSettings } from '../Settings'
 import { LocalRatingsCache } from '../Cache'
 import { LocalRatingsReplayDB } from '../ReplayDB';
 import { LocalRatingsRatingsDB } from '../RatingsDB';
-import { LocalRatingsRatingDatabase } from '../types/RatingDatabase';
-import { LocalRatingsHistoryDatabase } from '../types/HistoryDatabase';
 import { LocalRatingsAlias } from '../Alias';
+import { LocalRatingsMinifier } from '../Minifier';
 
 /**
  * Convert a number to a string with two decimal digits
@@ -50,35 +49,6 @@ function getAvd_LocalRatings(array: number[], mean: number): number {
 }
 
 /**
- * Return the name of a player, with the addition of the rating and the number of matches in gray color
- * @param {string} text
- * @param {object} playerData
- * @param {number} playerData.rating
- * @param {number} playerData.matches
- * @returns {string}
- */
-function addRating_LocalRatings(text: string, playerData : any) {
-    const settings = new LocalRatingsSettings();
-    const configKey = "localratings.general.format";
-    const savedFormat = settings.getSaved()[configKey];
-    const defaultFormat = settings.getDefault()[configKey];
-    const format = !(/r.*r|m.*m/.test(savedFormat)) ? savedFormat : defaultFormat;
-    const str = format
-        .replace("r", formatRating_LocalRatings(playerData.rating))
-        .replace("m", playerData.matches)
-        .replace("\\", "\\\\") // escape backslash
-        .replace("[", "\\[") // escape left square bracket
-        .replace("]", "\\]") // escape right square bracket
-
-    return text + " " + coloredText(str, "gray");
-}
-
-function coloredText(str : string, color: string)
-{
-    return str;
-}
-
-/**
  * splitRatingFromNick from gui/common/gamedescription.js does not adapt to situations like "Player One (custom rating)".
  * Therefore we need a different function to split the name from the rating.
  * @param {string} playerName
@@ -103,7 +73,6 @@ export interface LocalRatingsState {
     "ratingsDb": LocalRatingsRatingsDB,
     "replayDb": LocalRatingsReplayDB,
     "aliasDb": LocalRatingsAlias,
-    "cacheDb": LocalRatingsCache
 }
 
 declare module 'fastify' {
@@ -111,7 +80,6 @@ declare module 'fastify' {
         ratingsDb: LocalRatingsRatingsDB
         replayDb: LocalRatingsReplayDB,
         aliasDb: LocalRatingsAlias
-        cacheDb: LocalRatingsCache
     }
 }
 
@@ -125,23 +93,20 @@ function init_LocalRatings() : LocalRatingsState {
     const settings = new LocalRatingsSettings();
     settings.createDefaultSettingsIfNotExist();
 
-    // If cache version has changed, we empty all databases and we do nothing.
-    // Only a full rebuild will re-populate databases
     const cache = new LocalRatingsCache();
-    const replayDB = new LocalRatingsReplayDB();
-    const ratingsDB = new LocalRatingsRatingsDB();
-    const alias = new LocalRatingsAlias();
-    if (cache.isUpdateRequired())
+    const minifier = new LocalRatingsMinifier();
+    const replayDB = new LocalRatingsReplayDB(cache, minifier);
+    const ratingsDB = new LocalRatingsRatingsDB(cache, minifier);
+    const alias = new LocalRatingsAlias(cache);
+    if (replayDB.cache.isUpdateRequired())
     {
         replayDB.rebuild();
         ratingsDB.rebuild();
-        ratingsDB.save();
     }
 
     const data : LocalRatingsState = {
         "ratingsDb": ratingsDB,
         "replayDb": replayDB,
-        "cacheDb": cache,
         "aliasDb" : alias
     } as LocalRatingsState;
 
@@ -177,7 +142,6 @@ export {
     timeToString,
     sortString_LocalRatings,
     getPlayerName_LocalRatings,
-    addRating_LocalRatings,
     getAvd_LocalRatings,
     getStd_LocalRatings,
     getMean_LocalRatings,

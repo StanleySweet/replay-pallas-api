@@ -6,25 +6,24 @@ import { getMean_LocalRatings } from "./utilities/functions_utility";
 import { LocalRatingsHistoryDatabase, LocalRatingsHistoryDirectoryElement } from "./types/HistoryDatabase";
 import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
 import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
+import { LocalRatingsCache } from "./Cache";
+import { LocalRatingsMinifier } from "./Minifier";
 
 /**
  * This class is responsible for performing the rating computation.
  * It operates only onto its attributes and not on actual database files stored in the cache.
  */
-class LocalRatingsCalculator
-{
+class LocalRatingsCalculator {
 
     ratingsDatabase: LocalRatingsRatingDatabase
     historyDatabase: LocalRatingsHistoryDatabase
 
-    constructor()
-    {
+    constructor() {
         this.ratingsDatabase = {};
         this.historyDatabase = {};
     }
 
-    getScore(replayObj : LocalRatingsReplay, player : string)
-    {
+    getScore(replayObj: LocalRatingsReplay, player: string) {
         const playerIndex = replayObj.players.indexOf(player);
         const scores = replayObj.scores[playerIndex];
         const weights = new LocalRatingsWeights();
@@ -32,13 +31,11 @@ class LocalRatingsCalculator
         return score;
     }
 
-    getRating(playerScore : number, averageScore : number) : number
-    {
+    getRating(playerScore: number, averageScore: number): number {
         return (averageScore == 0) ? 0 : (playerScore - averageScore) / averageScore;
     }
 
-    run(replayDatabase : LocalRatingsReplayDatabase)
-    {
+    run(replayDatabase: LocalRatingsReplayDatabase) {
         // Load match filters
         const filterObj = new LocalRatingsFilter();
         // Generate a temporary history database
@@ -46,8 +43,7 @@ class LocalRatingsCalculator
 
         const safeDb = Object.values(JSON.parse(JSON.stringify(replayDatabase)));
 
-        for (const replayObj of safeDb as LocalRatingsReplay[])
-        {
+        for (const replayObj of safeDb as LocalRatingsReplay[]) {
             // Skip replay if invalid
             if (!replayObj.isValid)
                 continue;
@@ -65,8 +61,7 @@ class LocalRatingsCalculator
             const ratings = players.map((x, i) => this.getRating(scores[i], averageScore));
 
             // Update temporary history database
-            for (const player in players)
-            {
+            for (const player in players) {
                 const playerName = players[player];
                 if (!(playerName in tmpHistoryDatabase))
                     tmpHistoryDatabase[playerName] = {} as LocalRatingsHistoryDirectoryElement;
@@ -78,18 +73,16 @@ class LocalRatingsCalculator
         }
 
         // Now that temporary history database is populated, we can update the databases
-        for (const player in tmpHistoryDatabase)
-        {
+        for (const player in tmpHistoryDatabase) {
             const tmpMatches = Object.values(tmpHistoryDatabase[player]).length;
             const tmpRating = getMean_LocalRatings(Object.values(tmpHistoryDatabase[player]).map(x => x.rating))
 
             // Known player
-            if (player in this.ratingsDatabase)
-            {
+            if (player in this.ratingsDatabase) {
                 const oldMatches = this.ratingsDatabase[player].matches;
                 const oldRating = this.ratingsDatabase[player].rating;
                 const newMatches = oldMatches + tmpMatches;
-                const newRating = (oldRating*oldMatches + tmpRating*tmpMatches) / newMatches;
+                const newRating = (oldRating * oldMatches + tmpRating * tmpMatches) / newMatches;
                 this.ratingsDatabase[player] = {
                     "rating": newRating,
                     "matches": newMatches
@@ -98,8 +91,7 @@ class LocalRatingsCalculator
             }
 
             // Unknown player
-            else
-            {
+            else {
                 this.ratingsDatabase[player] = {
                     "rating": tmpRating,
                     "matches": tmpMatches
@@ -109,17 +101,15 @@ class LocalRatingsCalculator
         }
     }
 
-    rebuild()
-    {
+    rebuild(cache: LocalRatingsCache, minifier: LocalRatingsMinifier) {
         this.ratingsDatabase = {};
         this.historyDatabase = {};
-        const replayDB = new LocalRatingsReplayDB();
+        const replayDB = new LocalRatingsReplayDB(cache, minifier);
         replayDB.load();
         this.merge(replayDB.replayDatabase);
     }
 
-    merge(newReplays: LocalRatingsReplayDatabase)
-    {
+    merge(newReplays: LocalRatingsReplayDatabase) {
         this.run(newReplays);
     }
 

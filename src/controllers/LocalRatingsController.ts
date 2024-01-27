@@ -148,10 +148,6 @@ const get_player_list = async (request: FastifyRequest, reply: FastifyReply, fas
 
     const db = fastify.ratingsDb.ratingsDatabase;
 
-    const alias = new LocalRatingsAlias();
-    alias.merge(db, undefined);
-    alias.removeDuplicates(db, undefined);
-
     // Create an array of players, rating, matches.
     // We sort by rating, so we keep the information on their rank
     const items = Object.keys(db).map(x => [
@@ -190,15 +186,7 @@ const get_player_profile = async (request: GetPlayerProfileRequest, reply: Fasti
     const rank = request.body.rank;
     const players = request.body.players;
 
-    const ratingsDB = new LocalRatingsRatingsDB();
-    ratingsDB.load();
-
-    // Merge aliases
-    const historyDatabase: LocalRatingsHistoryDatabase = JSON.parse(JSON.stringify(ratingsDB.historyDatabase));
-    const alias = new LocalRatingsAlias();
-    alias.merge(undefined, historyDatabase);
-
-    const playerData = historyDatabase[player];
+    const playerData = fastify.ratingsDb.historyDatabase[player];
 
     const singleGamesRatings = Object.keys(playerData)
         .sort()

@@ -1,5 +1,5 @@
 import { EngineInstance as Engine } from "../types/Engine"
-import { LocalRatingsReplayDB } from "./ReplayDB";
+import { PlayerFilterConfigurationOptions } from "./types/PlayerFilterConfigurationOptions";
 import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
 
 /**
@@ -8,7 +8,7 @@ import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
  */
 class LocalRatingsPlayerFilter {
     ratingsDatabase: LocalRatingsRatingDatabase;
-    configOptions: any;
+    configOptions: PlayerFilterConfigurationOptions;
 
     constructor(ratingsDatabase: LocalRatingsRatingDatabase) {
         this.ratingsDatabase = ratingsDatabase;

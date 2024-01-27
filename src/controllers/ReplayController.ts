@@ -3,16 +3,16 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
-import AdmZip from "adm-zip";
+import AdmZip, { IZipEntry } from "adm-zip";
 import { FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { UploadReplayZipResponse, UploadReplayZipResponseSchema } from "../types/UploadReplayZipResponse";
 import { ReplayFileData } from "../types/ReplayFileData";
-import { Replay, ReplaySchema, ReplaysSchema, ToDbFormat } from "../types/Replay";
+import { Replay, ReplaySchema, Replays, ReplaysSchema, ToDbFormat } from "../types/Replay";
 import { UploadReplayCommandsResponse, UploadReplayCommandsResponseSchema } from "../types/UploadReplayCommandsResponse";
 import zodToJsonSchema from "zod-to-json-schema";
 import { ReplayMetaData } from "../types/ReplayMetaData";
 import { mode } from "../Utils";
-import { init_LocalRatings, update_LocalRatings } from "../local-ratings/utilities/functions_utility";
+import { update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import snappy from 'snappy';
 
 const ReplayController: FastifyPluginCallback = (server, _, done) => {
@@ -115,7 +115,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
      * @param zip
      * @returns
      */
-    function ExtractFolderData(files: any[], zip: AdmZip): Replay {
+    function ExtractFolderData(files: IZipEntry[], zip: AdmZip): Replay {
         const b = files.map(c => ExtractFileData(ExtractFileNameFromPath(c.entryName), zip.readAsText(c)))
         const metadata: ReplayMetaData = b.reduce((metadata, a) => Object.assign(metadata, a.Data), {});
         const result = { metadata: {} as ReplayMetaData, filedata: {} } as Replay;
@@ -152,7 +152,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             },
             ...schemaCommon
         }
-    }, async (request: FastifyRequest, reply: any): Promise<void> => {
+    }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         const data = await request.file({ "limits": { fileSize: 1024 * 1024 * 5 } })
         const response = { Success: false, AddedReplays: [] } as UploadReplayZipResponse
         if (!data) {
@@ -165,14 +165,14 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         const zipEntries = zip.getEntries();
         const folderNames = zipEntries.filter(a => a.isDirectory).map(a => a.entryName);
         const files = zipEntries.filter(a => !a.isDirectory);
-        let replays = [];
+        let replays : Replays = [];
         if (folderNames.length)
             replays = folderNames.map(folderName => ExtractFolderData(files.filter(b => b.entryName.includes(folderName)), zip))
         else
             replays = [ExtractFolderData(files, zip,)]
 
-        const matchIds: Replay[] = await server.database.all('SELECT match_id FROM replays;');
-        const newReplays = replays.filter(b => !matchIds.some(a => a.match_id === b.metadata.matchID));
+        const matchIds: Replays = await server.database.all('SELECT match_id FROM replays;');
+        const newReplays = replays.filter((b : Replay) => !matchIds.some((a : Replay) => a.match_id === b.metadata.matchID));
         const datas = newReplays.map(a => { return { "matchId": a.metadata.matchID, "playerNames": a.metadata.settings?.PlayerData?.filter(a => a && !a.AI).map(a => a.NameWithoutRating || "") } })
         const names = new Set<{ name: string, matchId: string }>();
         for (const nameArray of datas) {
@@ -228,6 +228,15 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
                     addedReplays.push(replay.metadata.matchID);
         response.AddedReplays = addedReplays;
         response.Success = addedReplays.length !== 0;
+
+        if (response.Success) {
+            update_LocalRatings({
+                "ratingsDb": server.ratingsDb,
+                "replayDb": server.replayDb,
+                "aliasDb": server.aliasDb,
+            });
+        }
+
         reply.send(response)
     });
 
@@ -243,7 +252,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         if (!matchId)
             return null;
 
-        const files: any[] = await server.database.all('SELECT match_id, filedata FROM replays WHERE match_id = $matchId LIMIT 1', { "$matchId": matchId });
+        const files: Replay[] = await server.database.all('SELECT match_id, filedata FROM replays WHERE match_id = $matchId LIMIT 1', { "$matchId": matchId });
         if (!files.length)
             return null;
 
@@ -254,48 +263,8 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             zip.addFile(file, Buffer.from(typeof (fileJson[file]) === "string" ? fileJson[file] : JSON.stringify(fileJson[file]), 'utf8'), '', 0o644)
         reply.header(
             'Content-Disposition',
-            `attachment; filename=${files[0].matchId}.zip`);
+            `attachment; filename=${files[0].match_id}.zip`);
         return reply.type('application/zip').send(zip.toBuffer());
-    });
-
-    server.get('/:matchId/metadata', {
-        schema: {
-            response: {
-                200: zodToJsonSchema(UploadReplayCommandsResponseSchema),
-            },
-            ...schemaCommon
-        }
-    }, async (request: FastifyRequest, reply: FastifyReply): Promise<any> => {
-        const matchId = (<any>request.params)["matchId"];
-        if (!matchId)
-            return null;
-
-        const files: any[] = await server.database.all('SELECT filedata FROM replays WHERE match_id = $matchId LIMIT 1', { "$matchId": matchId });
-        if (!files.length)
-            return null;
-
-        const fileJson = JSON.parse(await snappy.uncompress(files[0].filedata, { asBuffer: false }) as string);
-        return fileJson["metadata.json"] ? fileJson["metadata.json"] : null;
-    });
-
-    server.get('/:matchId/commands', {
-        schema: {
-            response: {
-                200: zodToJsonSchema(UploadReplayCommandsResponseSchema),
-            },
-            ...schemaCommon
-        }
-    }, async (request: FastifyRequest, reply: FastifyReply): Promise<any> => {
-        const matchId = (<any>request.params)["matchId"];
-        if (!matchId)
-            return null;
-
-        const files: any[] = await server.database.all('SELECT filedata FROM replays WHERE match_id = $matchId LIMIT 1', { "$matchId": matchId });
-        if (!files.length)
-            return null;
-
-        const fileJson = JSON.parse(await snappy.uncompress(files[0].filedata, { asBuffer: false }) as string);
-        return fileJson["commands.txt"] ? fileJson["commands.txt"] : null;
     });
 
     server.get('/:matchId', {
@@ -310,9 +279,9 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         if (!matchId)
             return null;
 
-        const replays: any[] = await server.database.all('SELECT match_id, metadata FROM replays WHERE match_id = $matchId LIMIT 1', { "$matchId": matchId });
+        const replays: Replays = await server.database.all('SELECT match_id, metadata FROM replays WHERE match_id = $matchId LIMIT 1', { "$matchId": matchId });
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata, { asBuffer: false }) as string)
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
         return replays.length ? replays[0] : null;
     });
 
@@ -324,9 +293,9 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             ...schemaCommon
         }
     }, async (request: FastifyRequest, reply: FastifyReply): Promise<any> => {
-        const replays: any[] = await server.database.all('SELECT match_id, metadata FROM replays ORDER BY creation_date desc LIMIT 10');
+        const replays: Replays = await server.database.all('SELECT match_id, metadata FROM replays ORDER BY creation_date desc LIMIT 10');
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata, { asBuffer: false }) as string)
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
         return replays;
     });
 
@@ -338,49 +307,10 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             ...schemaCommon
         }
     }, async (_request: FastifyRequest, _reply: FastifyReply): Promise<any> => {
-        const replays: Replay[] = await server.database.all('SELECT match_id, metadata FROM replays ORDER BY creation_date desc');
+        const replays: Replays = await server.database.all('SELECT match_id, metadata FROM replays ORDER BY creation_date desc');
         for (const element of replays)
             element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
         return replays;
-    });
-
-    server.post('/upload-commands', {
-        "schema": {
-            consumes: ['multipart/form-data'],
-            response: {
-                200: zodToJsonSchema(UploadReplayCommandsResponseSchema),
-            },
-            ...schemaCommon
-        }
-    }, async (request: FastifyRequest, reply: any): Promise<void> => {
-        const data = await request.file()
-        const response = {} as UploadReplayCommandsResponse;
-        if (!data) {
-            reply.send(response);
-            return;
-        }
-
-        const buf = await data.toBuffer();
-        const b = ExtractFileData("commands.txt", buf.toString());
-        const metadata = b.Data
-        const replay: Replay = { metadata: {}, filedata: {} } as Replay;
-        replay.metadata = metadata;
-        replay.filedata["commands.txt"] = metadata.Contents
-        const matchIds: ({ match_id: string })[] = await server.database.all('SELECT match_id FROM replays;');
-        if (!matchIds.some(a => a.match_id === replay.metadata.matchID) && await UploadReplayToDatabase(replay))
-            response.AddedReplay = replay.metadata.matchID ?? null;
-
-        response.Success = !!response.AddedReplay;
-        if (response.Success) {
-            update_LocalRatings({
-                "ratingsDb": server.ratingsDb,
-                "replayDb": server.replayDb,
-                "aliasDb": server.aliasDb,
-                "cacheDb": server.cacheDb,
-            });
-        }
-
-        reply.send(response);
     });
 
     done();

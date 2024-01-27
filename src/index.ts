@@ -116,10 +116,9 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     await server.ready();
     server.swagger();
 
-    const { ratingsDb, replayDb, cacheDb, aliasDb } =  init_LocalRatings();
+    const { ratingsDb, replayDb, aliasDb } =  init_LocalRatings();
 
     server.ratingsDb = ratingsDb;
     server.replayDb = replayDb;
     server.aliasDb = aliasDb;
-    server.cacheDb = cacheDb;
 });

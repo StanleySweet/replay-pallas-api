@@ -17,7 +17,7 @@ class LocalRatingsReplay {
     exploredMap: boolean;
     mods: string[];
     nomad : boolean;
-    populationCap: any;
+    populationCap: number | undefined;
     revealedMap  : boolean;
     startingResources : any;
     teamsSize : { [team: string]: number };
@@ -34,7 +34,7 @@ class LocalRatingsReplay {
         this.civs = metadata.getCivs();
         this.date = metadata.getDate();
         this.directory = metadata.directory;
-        this.duration = metadata.duration;
+        this.duration = metadata.getDuration();
         this.exploredMap = metadata.getExploredMap();
         this.mods = metadata.getMods();
         this.nomad = metadata.getNomad();

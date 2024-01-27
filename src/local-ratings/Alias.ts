@@ -1,5 +1,4 @@
 import { LocalRatingsCache } from "./Cache";
-import { LocalRatingsRatingsDB } from "./RatingsDB";
 import { sortString_LocalRatings } from "./utilities/functions_utility";
 import { LocalRatingsHistoryDatabase } from "./types/HistoryDatabase";
 import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
@@ -10,12 +9,12 @@ import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
  */
 class LocalRatingsAlias {
 
-    aliasesDatabase : any;
-    cache:LocalRatingsCache;
+    aliasesDatabase: any;
+    cache: LocalRatingsCache;
 
-    constructor() {
+    constructor(cache: LocalRatingsCache) {
         this.aliasesDatabase = {};
-        this.cache = new LocalRatingsCache();
+        this.cache = cache;
     }
 
     load() {
@@ -26,7 +25,7 @@ class LocalRatingsAlias {
         this.cache.save("aliasesDatabase", this.aliasesDatabase);
     }
 
-    merge(ratingsDatabase : LocalRatingsRatingDatabase | undefined, historyDatabase: LocalRatingsHistoryDatabase | undefined) {
+    merge(ratingsDatabase: LocalRatingsRatingDatabase | undefined, historyDatabase: LocalRatingsHistoryDatabase | undefined) {
         if (!ratingsDatabase && !historyDatabase)
             return;
 
@@ -48,7 +47,7 @@ class LocalRatingsAlias {
         for (const group of groups) {
             const first = group[0];
             const aliases = group.slice(1);
-            const duplicates : {[index:string] : number} = {};
+            const duplicates: { [index: string]: number } = {};
             for (const alias of aliases) {
                 // If ratingsDatabase is defined, merge information on first
                 if (ratingsDatabase) {
@@ -79,7 +78,7 @@ class LocalRatingsAlias {
         }
     }
 
-    removeDuplicates(ratingsDatabase : LocalRatingsRatingDatabase, historyDatabase : LocalRatingsHistoryDatabase | undefined) {
+    removeDuplicates(ratingsDatabase: LocalRatingsRatingDatabase, historyDatabase: LocalRatingsHistoryDatabase | undefined) {
         this.load();
         Object.values(this.aliasesDatabase).flat().forEach(alias => {
 

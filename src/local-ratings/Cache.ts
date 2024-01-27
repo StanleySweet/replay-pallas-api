@@ -65,7 +65,7 @@ class LocalRatingsCache {
         return (data) ? data : {};
     }
 
-    save(tag: string, json: {}) {
+    save(tag: string, json: any) {
         Engine.ProfileStart("LocalRatingsSaveCacheFile");
         const file = this.tagToFilename(tag);
         Engine.WriteJSONFile(file, json);

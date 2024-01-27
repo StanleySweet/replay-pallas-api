@@ -10,14 +10,18 @@ import { LocalRatingsSequences } from "../Sequences";
 import { getMean_LocalRatings } from "../utilities/functions_utility";
 
 export class LocalRatingsMetadataContainer {
-    directory = "";
-    duration: any;
-    attribs: ReplayMetaData = {}
+    directory;
+    attribs: ReplayMetaData;
 
     constructor()
     {
+        this.directory = "";
+        this.attribs = {} as ReplayMetaData;
     }
 
+    getDuration() : number {
+        return this.attribs?.settings?.MatchDuration ?? 0;
+    }
 
     padNumber(number : number) {
         return number.toString().padStart(2, '0');

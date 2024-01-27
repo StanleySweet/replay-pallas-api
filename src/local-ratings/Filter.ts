@@ -182,12 +182,12 @@ class LocalRatingsFilter
 
     filterMinPopCap(replayObj : LocalRatingsReplay)
     {
-        return (replayObj.populationCap < this.configOptions.minpopcap);
+        return ((replayObj.populationCap ?? 0) < this.configOptions.minpopcap);
     }
 
     filterMaxPopCap(replayObj : LocalRatingsReplay)
     {
-        return (replayObj.populationCap > this.configOptions.maxpopcap);
+        return ((replayObj.populationCap ?? 0) > this.configOptions.maxpopcap);
     }
 
     filterWorldPopulation(replayObj : LocalRatingsReplay)

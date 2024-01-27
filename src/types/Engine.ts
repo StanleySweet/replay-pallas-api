@@ -11,7 +11,7 @@ class Engine {
             return {} as ReplayMetaData;
 
         const replay = this.database.prepare('Select metadata as attribs From replays where match_id = @match_id LIMIT 1;').get({ "match_id" : directory}) as LocalRatingsMetadataContainer;
-        return JSON.parse(uncompressSync(replay.attribs as any, { asBuffer: false }) as string) as ReplayMetaData;
+        return JSON.parse(uncompressSync(replay.attribs as string, { asBuffer: false }) as string) as ReplayMetaData;
     }
     ConfigDB_RemoveValue(section: string, key: string) {
         if(!this.database)
@@ -26,25 +26,21 @@ class Engine {
         if (!this.database)
             return [];
 
-        const replays = this.database.prepare('Select metadata as attribs, match_id as directory  From replays;').all() as LocalRatingsMetadataContainer[] ;
-        for (const element of replays)
-        {
-            element.attribs = JSON.parse(uncompressSync(element.attribs as any, { asBuffer: false }) as string)
-            element.duration = element.attribs.settings?.MatchDuration;
+        const replays = this.database.prepare('Select metadata as attribs, match_id as directory  From replays;').all() as LocalRatingsMetadataContainer[];
+        for (const element of replays) {
+            element.attribs = JSON.parse(uncompressSync(element.attribs as string, { asBuffer: false }) as string)
         }
 
-
-        for(let i = 0; i < replays.length; ++i)
-        {
+        for (let i = 0; i < replays.length; ++i) {
             const prevElem = replays[i];
             replays[i] = new LocalRatingsMetadataContainer();
             replays[i].attribs = prevElem.attribs;
-            replays[i].duration = prevElem.duration;
             replays[i].directory = prevElem.directory;
         }
 
         return replays;
     }
+
     WriteJSONFile(x: string, data: any): void {
         const path = Path.dirname(x);
         if (!existsSync(path)){
@@ -66,7 +62,7 @@ class Engine {
             }]
         }
     }
-    ProfileStart(arg0: string) {
+    ProfileStart(_: string) {
         // Nothing to do there.
     }
     ProfileStop() {
