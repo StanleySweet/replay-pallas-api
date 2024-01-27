@@ -376,7 +376,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
     type DeleteMyReplayRequest = FastifyRequest<{ Params: { match_id: string } }>;
 
-    server.delete('my-replays', {
+    server.delete('/:match_id', {
         "schema": {
             "params": zodToJsonSchema(z.object({ "match_id": z.string() })),
             "response":{
@@ -387,8 +387,9 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
                 "403": {
                     type: 'null',
                     description: 'Unauthorized'
-                }
-            }
+                },
+            },
+            ...schemaCommon
         }
 
     }, async (request: DeleteMyReplayRequest, reply: FastifyReply): Promise<void> => {
@@ -409,7 +410,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         reply.code(200);
     });
 
-    server.get('my-replays', {
+    server.get('/my-replays', {
         "schema": {
             "response":{
                 "200": zodToJsonSchema(ReplaysSchema),
@@ -420,8 +421,9 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
                 "403": {
                     type: 'null',
                     description: 'Unauthorized'
-                }
-            }
+                },
+            },
+            ...schemaCommon
         }
     },  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         if (request.claims.role < EUserRole.READER) {
@@ -429,9 +431,8 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replays: Replays = await server.database.all('SELECT match_id, metadata FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = $userId ORDER BY creation_date desc', { "$userId": request.claims.id });
-
-        if (!replays || replays.length) {
+        const replays: Replays = await server.database.all('SELECT r.match_id, metadata FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = $userId ORDER BY rul.creation_date desc', { "$userId": request.claims.id });
+        if (!replays || !replays.length) {
             reply.code(204);
             return;
         }

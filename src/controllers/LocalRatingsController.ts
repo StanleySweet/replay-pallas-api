@@ -56,13 +56,14 @@ const RowSchema = z.object({
 });
 
 const CivilizationChartDataSchema = z.object({
+    "civKeys": z.array(z.string()),
+    "civRatings": z.array(z.number()),
     "civMatches": z.array(z.number()),
-    "civRatings": z.array(z.undefined(z.number())),
-    "advantages": z.array(z.undefined(z.number())),
-    "maxAbsAdvantage" : z.number()
+    "advantages": z.array(z.number()),
 });
 
 type Row = z.infer<typeof RowSchema>;
+type CivilizationChartData = z.infer<typeof CivilizationChartDataSchema>;
 
 const RowsSchema = z.array(RowSchema);
 
@@ -102,11 +103,11 @@ const get_civ_chart_data = async (request: GetPlayerProfileRequest, reply: Fasti
         return Object.keys(playerData).filter(x => playerData[x].civ == civ).map(x => playerData[x].rating);
     }
 
-    const get_civ_rating = (civ:string) : number | undefined =>
+    const get_civ_rating = (civ:string) : number =>
     {
         const singleGamesRatings = getCivSingleGamesRatings(civ);
         if (singleGamesRatings.length == 0)
-            return undefined;
+            return 0;
         return getMean_LocalRatings(singleGamesRatings);
     }
 
@@ -124,24 +125,24 @@ const get_civ_chart_data = async (request: GetPlayerProfileRequest, reply: Fasti
     const get_civ_advantage = (civRating : number | undefined, currentRating : number) =>
     {
         if (civRating === undefined)
-            return undefined;
+            return 0;
         return civRating - currentRating;
     }
 
     const civs : Civilizations = await fastify.database.all("Select key from civilizations;")
     const currentRating = get_current_rating();
     const civRatings = civs.map(x => get_civ_rating(x.key));
-    const advantages = civRatings.map(x => get_civ_advantage(x, currentRating));
     const civMatches = civs.map(x => get_civ_matches(x.key));
-    const filteredAdvantages : number [] = advantages.filter((item): item is number => !!item);
-    const maxAbsAdvantage = Math.max(Math.max(...filteredAdvantages), -Math.min(...filteredAdvantages));
+    const advantages = civRatings.map(x => get_civ_advantage(x, currentRating));
 
-    reply.send({
-        "civMatches": civMatches,
+    const data : CivilizationChartData = {
+        "civKeys": civs.map(a => a.key),
         "civRatings": civRatings,
+        "civMatches": civMatches,
         "advantages": advantages,
-        "maxAbsAdvantage" : maxAbsAdvantage
-    })
+    }
+
+    reply.send(data);
 }
 
 const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {

@@ -29,6 +29,8 @@ class LocalRatingsRatingsDB {
     load() {
         this.ratingsDatabase = this.minifier.magnifyRatingsDatabase(this.cache.load("ratingsDatabase"));
         this.historyDatabase = this.minifier.magnifyHistoryDatabase(this.cache.load("historyDatabase"));
+        this.calculator.ratingsDatabase = this.ratingsDatabase;
+        this.calculator.historyDatabase = this.historyDatabase;
     }
 
     save() {

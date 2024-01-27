@@ -103,6 +103,11 @@ function init_LocalRatings() : LocalRatingsState {
         replayDB.rebuild();
         ratingsDB.rebuild();
     }
+    else
+    {
+        replayDB.load();
+        ratingsDB.load();
+    }
 
     const data : LocalRatingsState = {
         "ratingsDb": ratingsDB,
