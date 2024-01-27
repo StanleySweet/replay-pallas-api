@@ -15,6 +15,7 @@ import { mode } from "../Utils";
 import { update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import snappy from 'snappy';
 import EUserRole from "../enumerations/EUserRole";
+import { z } from "zod";
 
 const ReplayController: FastifyPluginCallback = (server, _, done) => {
     const schemaCommon = {
@@ -251,21 +252,38 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         reply.send(response)
     });
 
+    type GetMatchZipByIdRequest = FastifyRequest<{ Params: { matchId: string } }>;
+
     server.get('/:matchId/zip', {
         schema: {
             response: {
                 200: zodToJsonSchema(UploadReplayCommandsResponseSchema),
+                "403": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
             },
             ...schemaCommon
         }
-    }, async (request: FastifyRequest, reply: FastifyReply): Promise<any> => {
-        const matchId = (<any>request.params)["matchId"];
+    }, async (request: GetMatchZipByIdRequest, reply: FastifyReply): Promise<void> => {
+        if (request.claims.role < EUserRole.READER) {
+            reply.code(403);
+            return;
+        }
+
+        const matchId = request.params.matchId
         if (!matchId)
-            return null;
+        {
+            reply.send(null);
+            return;
+        }
 
         const files: Replay[] = await server.database.all('SELECT match_id, filedata FROM replays WHERE match_id = $matchId LIMIT 1', { "$matchId": matchId });
         if (!files.length)
-            return null;
+        {
+            reply.send(null);
+            return;
+        }
 
         const fileJson = JSON.parse(await snappy.uncompress(files[0].filedata, { asBuffer: false }) as string);
 
@@ -275,55 +293,154 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         reply.header(
             'Content-Disposition',
             `attachment; filename=${files[0].match_id}.zip`);
-        return reply.type('application/zip').send(zip.toBuffer());
+        reply.type('application/zip').send(zip.toBuffer());
     });
+
+    type GetMatchByIdRequest = FastifyRequest<{ Params: { matchId: string } }>;
 
     server.get('/:matchId', {
         schema: {
             response: {
                 200: zodToJsonSchema(ReplaySchema),
+                "403": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
             },
             ...schemaCommon
         }
-    }, async (request: FastifyRequest, reply: FastifyReply): Promise<any> => {
-        const { matchId } = (<any>request.params);
+    }, async (request: GetMatchByIdRequest, reply: FastifyReply): Promise<void> => {
+        if (request.claims.role < EUserRole.READER) {
+            reply.code(403);
+            return;
+        }
+
+        const { matchId } = request.params;
         if (!matchId)
-            return null;
+        {
+            reply.send(null);
+            return;
+        }
 
         const replays: Replays = await server.database.all('SELECT match_id, metadata FROM replays WHERE match_id = $matchId LIMIT 1', { "$matchId": matchId });
         for (const element of replays)
             element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
-        return replays.length ? replays[0] : null;
+
+        reply.send(replays.length ? replays[0] : null);
     });
 
     server.get('/latest', {
         schema: {
             response: {
                 200: zodToJsonSchema(ReplaysSchema),
+                "403": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
             },
             ...schemaCommon
         }
-    }, async (request: FastifyRequest, reply: FastifyReply): Promise<any> => {
+    }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        if (request.claims.role < EUserRole.READER) {
+            reply.code(403);
+            return;
+        }
         const replays: Replays = await server.database.all('SELECT match_id, metadata FROM replays ORDER BY creation_date desc LIMIT 10');
         for (const element of replays)
             element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
-        return replays;
+        reply.send(replays);
     });
 
     server.get('/all', {
         schema: {
             response: {
                 200: zodToJsonSchema(ReplaysSchema),
+                "403": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
             },
             ...schemaCommon
         }
-    }, async (_request: FastifyRequest, _reply: FastifyReply): Promise<any> => {
+    }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        if (request.claims.role < EUserRole.READER) {
+            reply.code(403);
+            return;
+        }
+
         const replays: Replays = await server.database.all('SELECT match_id, metadata FROM replays ORDER BY creation_date desc');
         for (const element of replays)
             element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
-        return replays;
+        reply.send(replays);
     });
 
+    type DeleteMyReplayRequest = FastifyRequest<{ Params: { match_id: string } }>;
+
+    server.delete('my-replays', {
+        "schema": {
+            "params": z.object({ "match_id": z.string() }),
+            "response":{
+                "200": {
+                    type: 'null',
+                    description: 'Nothing'
+                },
+                "403": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            }
+        }
+
+    }, async (request: DeleteMyReplayRequest, reply: FastifyReply): Promise<void> => {
+        if (request.claims.role < EUserRole.CONTRIBUTOR) {
+            reply.code(403);
+            return;
+        }
+
+        await server.database.run("Delete From replays Where match_id = $match_id;", {
+            "$match_id": request.params.match_id
+        });
+
+        await server.database.run("Delete From replay_user_link Where match_id = $match_id and user_id = $user_id;", {
+            "$match_id": request.params.match_id,
+            "$user_id": request.claims.id
+        });
+
+        reply.code(200);
+    });
+
+    server.get('my-replays', {
+        "schema": {
+            "response":{
+                "200": zodToJsonSchema(ReplaysSchema),
+                "204": {
+                    type: 'null',
+                    description: 'No Content'
+                },
+                "403": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            }
+        }
+    },  async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        if (request.claims.role < EUserRole.READER) {
+            reply.code(403);
+            return;
+        }
+
+        const replays: Replays = await server.database.all('SELECT match_id, metadata FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = $userId ORDER BY creation_date desc', { "$userId": request.claims.id });
+
+        if (!replays || replays.length) {
+            reply.code(204);
+            return;
+        }
+
+        for (const element of replays)
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
+
+        reply.send(replays)
+    });
     done();
 };
 
