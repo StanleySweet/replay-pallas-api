@@ -14,6 +14,7 @@ import { LocalRatingsHistoryDatabase, LocalRatingsHistoryDatabaseElement, LocalR
 import { LatestUser, LatestUserSchema, User } from "../types/User";
 import { LocalRatingsPlayerFilter } from "../local-ratings/PlayerFilter";
 import { LocalRatingsEvolutionChartOptions } from "../local-ratings/EvolutionChartOptions";
+import { Civilization, Civilizations } from "../types/Civilization";
 
 const RankDataSchema = z.object({
     "rank": z.number(),
@@ -54,6 +55,13 @@ const RowSchema = z.object({
     "user": LatestUserSchema
 });
 
+const CivilizationChartDataSchema = z.object({
+    "civMatches": z.array(z.number()),
+    "civRatings": z.array(z.undefined(z.number())),
+    "advantages": z.array(z.undefined(z.number())),
+    "maxAbsAdvantage" : z.number()
+});
+
 type Row = z.infer<typeof RowSchema>;
 
 const RowsSchema = z.array(RowSchema);
@@ -77,6 +85,63 @@ function getAverageRatings(singleGamesRatings: number[]) {
     for (let i = 1; i < singleGamesRatings.length; i++)
         singleGamesRatingsSum.push(singleGamesRatingsSum[i - 1] + singleGamesRatings[i]);
     return singleGamesRatingsSum.map((x, i) => x / (i + 1));
+}
+
+const get_civ_chart_data = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
+    if (request.claims.role < EUserRole.READER) {
+        reply.code(401);
+        return;
+    }
+
+    const player = request.body.player;
+    // Merge aliases
+    const historyDatabase = fastify.ratingsDb.historyDatabase;
+    const playerData = historyDatabase[player];
+
+    const getCivSingleGamesRatings = (civ : string) => {
+        return Object.keys(playerData).filter(x => playerData[x].civ == civ).map(x => playerData[x].rating);
+    }
+
+    const get_civ_rating = (civ:string) : number | undefined =>
+    {
+        const singleGamesRatings = getCivSingleGamesRatings(civ);
+        if (singleGamesRatings.length == 0)
+            return undefined;
+        return getMean_LocalRatings(singleGamesRatings);
+    }
+
+    const get_current_rating = () =>
+    {
+        const singleGamesRatings = Object.keys(playerData).map(x => playerData[x].rating);
+        return getMean_LocalRatings(singleGamesRatings);
+    }
+
+    const get_civ_matches = (civ: string) =>
+    {
+        return getCivSingleGamesRatings(civ).length;
+    }
+
+    const get_civ_advantage = (civRating : number | undefined, currentRating : number) =>
+    {
+        if (civRating === undefined)
+            return undefined;
+        return civRating - currentRating;
+    }
+
+    const civs : Civilizations = await fastify.database.all("Select key from civilizations;")
+    const currentRating = get_current_rating();
+    const civRatings = civs.map(x => get_civ_rating(x.key));
+    const advantages = civRatings.map(x => get_civ_advantage(x, currentRating));
+    const civMatches = civs.map(x => get_civ_matches(x.key));
+    const filteredAdvantages : number [] = advantages.filter((item): item is number => !!item);
+    const maxAbsAdvantage = Math.max(Math.max(...filteredAdvantages), -Math.min(...filteredAdvantages));
+
+    reply.send({
+        "civMatches": civMatches,
+        "civRatings": civRatings,
+        "advantages": advantages,
+        "maxAbsAdvantage" : maxAbsAdvantage
+    })
 }
 
 const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
@@ -243,6 +308,24 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
             ...schemaCommon
         }
     }, (request: FastifyRequest, reply: FastifyReply) => get_player_list(request, reply, fastify));
+
+    fastify.post("/civilization-data", {
+        schema: {
+            body: zodToJsonSchema(GetPlayerProfileSchema),
+            response: {
+                200: zodToJsonSchema(CivilizationChartDataSchema),
+                204: {
+                    type: 'null',
+                    description: 'No Content'
+                },
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_civ_chart_data(request, reply, fastify));
 
 
     fastify.post("/evolution-data", {
