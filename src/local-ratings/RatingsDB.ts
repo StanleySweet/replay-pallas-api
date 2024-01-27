@@ -42,7 +42,7 @@ class LocalRatingsRatingsDB {
         // Update globals
         this.ratingsDatabase = this.calculator.ratingsDatabase;
         this.historyDatabase = this.calculator.historyDatabase;
-        pino().info(`Rebuilding the rating database. ${Object.keys(this.ratingsDatabase).length} ratings and ${Object.keys(this.historyDatabase).length} history points  were added.`)
+        pino().info(`Rebuilding the rating database. ${Object.keys(this.ratingsDatabase).length} ratings and ${Object.keys(this.historyDatabase).length} history points were added.`)
         this.save();
     }
 

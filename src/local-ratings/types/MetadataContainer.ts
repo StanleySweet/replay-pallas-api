@@ -101,7 +101,7 @@ export class LocalRatingsMetadataContainer {
     }
 
     getMods() {
-        return this.attribs.mods.map((x: { mod: string, version: string }) => x.mod + " " + x.version);
+        return this.attribs.mods.filter((a : { mod: string, version: string }) => a.mod && a.version).map((x: { mod: string, version: string }) => x.mod + " " + x.version);
     }
 
     getScores(playerName: string): LocalRatingsSequences {
