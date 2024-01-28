@@ -129,7 +129,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
                 if (metadata.playerStates?.length) {
 
                     const index = metadata.settings.PlayerData.indexOf(player) + 1;
-                    if(index > metadata.playerStates.length - 1 || metadata.playerStates[index])
+                    if(index > metadata.playerStates.length - 1 || !metadata.playerStates[index])
                         continue;
 
                     player.State = metadata.playerStates[index].state;
