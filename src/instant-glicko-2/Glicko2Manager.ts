@@ -53,7 +53,7 @@ class Glicko2Manager {
 
     load(): void {
         this.ratings = this.database.prepare('Select * From glicko2_rankings;').all() as PallasGlickoRating[];
-        pino().info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded.`)
+        pino().info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded for ${new Set(this.ratings.map(a => a.lobby_player_id)).size} player(s).`)
     }
 
     process_replays(replays: Replays): void {
@@ -118,7 +118,7 @@ class Glicko2Manager {
             }
         }
 
-        pino().info(`Rebuilding the glicko2 database. ${Array.from(players.keys()).length} ratings(s) were added.`)
+        pino().info(`Rebuilding the glicko2 database. ${Array.from(players.keys()).length} ratings(s) were added for ${playersIds.size} player(s).`)
     }
 
     rebuild(): void {

@@ -6,7 +6,7 @@
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import EUserRole from "../enumerations/EUserRole";
 import zodToJsonSchema from "zod-to-json-schema";
-import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, sortString_LocalRatings } from "../local-ratings/utilities/functions_utility";
+import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, sortString_LocalRatings, update_LocalRatings, LocalRatingsState } from "../local-ratings/utilities/functions_utility";
 import { z } from 'zod'
 import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
 import { LatestUser, LatestUserSchema } from "../types/User";
@@ -109,6 +109,12 @@ const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify
     try {
         fastify.replayDb.rebuild();
         fastify.ratingsDb.rebuild();
+
+        update_LocalRatings({
+            "ratingsDb": fastify.ratingsDb,
+            "replayDb": fastify.replayDb,
+            "aliasDb": fastify.aliasDb,
+        });
         reply.code(200);
     }
     catch (err) {
