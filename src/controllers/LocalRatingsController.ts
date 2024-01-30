@@ -7,14 +7,11 @@ import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } 
 import EUserRole from "../enumerations/EUserRole";
 import zodToJsonSchema from "zod-to-json-schema";
 import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, sortString_LocalRatings } from "../local-ratings/utilities/functions_utility";
-import { LocalRatingsAlias } from "../local-ratings/Alias";
-import { LocalRatingsRatingsDB } from "../local-ratings/RatingsDB";
 import { z } from 'zod'
-import { LocalRatingsHistoryDatabase, LocalRatingsHistoryDatabaseElement, LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
-import { LatestUser, LatestUserSchema, User } from "../types/User";
-import { LocalRatingsPlayerFilter } from "../local-ratings/PlayerFilter";
+import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
+import { LatestUser, LatestUserSchema } from "../types/User";
 import { LocalRatingsEvolutionChartOptions } from "../local-ratings/EvolutionChartOptions";
-import { Civilization, Civilizations } from "../types/Civilization";
+import { Civilizations } from "../types/Civilization";
 
 const RankDataSchema = z.object({
     "rank": z.number(),
@@ -76,6 +73,50 @@ type EvolutionChartData = z.infer<typeof EvolutionChartDataSchema>;
 
 type GetPlayerProfileRequest = FastifyRequest<{ Body: GetPlayerProfileModel }>;
 
+const PallasGlickoRatingSchema = z.object({
+    "id": z.number().optional(),
+    "elo": z.number(),
+    "deviation": z.number(),
+    "volatility": z.number(),
+    "lobby_player_id": z.number(),
+    "preview_deviation":z.number(),
+})
+
+
+const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if (request.claims?.role  ?? 0 < EUserRole.READER) {
+        reply.code(401);
+        return;
+    }
+
+    try {
+        reply.send(fastify.glicko2Manager.ratings)
+    }
+    catch (err) {
+        console.error(err);
+        reply.code(400);
+    }
+}
+
+
+
+const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if ((request.claims?.role ?? 0) <= EUserRole.ADMINISTRATOR) {
+        reply.code(401);
+        return;
+    }
+
+    try {
+        fastify.replayDb.rebuild();
+        fastify.ratingsDb.rebuild();
+        reply.code(200);
+    }
+    catch (err) {
+        console.error(err);
+        reply.code(400);
+    }
+}
+
 
 function getSingleGamesRatings(playerData: LocalRatingsHistoryDirectoryElement): number[] {
     return Object.keys(playerData).sort().map(x => playerData[x].rating);
@@ -88,8 +129,8 @@ function getAverageRatings(singleGamesRatings: number[]) {
     return singleGamesRatingsSum.map((x, i) => x / (i + 1));
 }
 
-const get_civ_chart_data = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role < EUserRole.READER) {
+const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
         return;
     }
@@ -129,7 +170,7 @@ const get_civ_chart_data = async (request: GetPlayerProfileRequest, reply: Fasti
         return civRating - currentRating;
     }
 
-    const civs : Civilizations = await fastify.database.all("Select key from civilizations;")
+    const civs : Civilizations = fastify.database.prepare("Select key from civilizations;").all() as Civilizations;
     const currentRating = get_current_rating();
     const civRatings = civs.map(x => get_civ_rating(x.key));
     const civMatches = civs.map(x => get_civ_matches(x.key));
@@ -146,7 +187,7 @@ const get_civ_chart_data = async (request: GetPlayerProfileRequest, reply: Fasti
 }
 
 const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role < EUserRole.READER) {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
         return;
     }
@@ -206,8 +247,8 @@ const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply:
 }
 
 
-const get_player_list = async (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role < EUserRole.READER) {
+const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
         return;
     }
@@ -223,10 +264,10 @@ const get_player_list = async (request: FastifyRequest, reply: FastifyReply, fas
     ]).sort((a, b) => (b[1] as number) - (a[1] as number));
 
 
-    const users: LatestUser[] = await fastify.database.all(`SELECT lp.id, lp.nick, (CASE  when u.role IS  Null then 0 else u.role END)
+    const users: LatestUser[] = fastify.database.prepare(`SELECT lp.id, lp.nick, (CASE  when u.role IS  Null then 0 else u.role END)
     as role, CASE When  u.creation_date is null then lp.creation_date else lp.creation_date End as creation_date FROM lobby_players lp
     Left Join users u on u.nick = lp.nick
-    Where lp.nick in (${items.map(a => "'" + a[0] + "'").join(', ')})`);
+    Where lp.nick in (${items.map(a => "'" + a[0] + "'").join(', ')})`).all() as LatestUser[];
 
     // Construct table rows, using the previously created items
     const rows = items.map((x, i): Row => {
@@ -243,7 +284,7 @@ const get_player_list = async (request: FastifyRequest, reply: FastifyReply, fas
 
 
 const get_player_profile = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role < EUserRole.READER) {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
         return;
     }
@@ -365,6 +406,43 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
         }
     }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_player_profile(request, reply, fastify));
 
+    fastify.get("/glicko-ratings", {
+        schema: {
+            response: {
+                200: zodToJsonSchema(z.array(PallasGlickoRatingSchema)),
+                204: {
+                    type: 'null',
+                    description: 'No Content'
+                },
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_glicko_ratings(request, reply, fastify));
+
+    
+    fastify.post("/rebuild-database", {
+        schema: {
+            response: {
+                200: {
+                    type: 'null',
+                    description: 'Everything is fine.'
+                },
+                204: {
+                    type: 'null',
+                    description: 'No Content'
+                },
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: FastifyRequest, reply: FastifyReply) => rebuild_database(request, reply, fastify));
 
     done();
 };

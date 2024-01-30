@@ -20,8 +20,10 @@ import { EngineInstance } from "./types/Engine";
 import BetterDatabase from "better-sqlite3";
 import { init_LocalRatings } from "./local-ratings/utilities/functions_utility";
 import { LocalRatingsController } from "./controllers/LocalRatingsController";
-import { User } from "./types/User";
-
+import { Glicko2Manager } from "./instant-glicko-2/Glicko2Manager";
+import { Task, SimpleIntervalJob } from "toad-scheduler";
+import fastifySchedulePlugin from "@fastify/schedule";
+import { HealthController } from "./controllers/HealthController";
 const server = fastify({ logger: true });
 server.register(cors, {
     origin: '*', // Allowing requests from any origin
@@ -30,43 +32,45 @@ server.register(cors, {
 
 /* eslint-disable */
 server.register(multipart)
-server.register(fastifySwagger, {})
-server.register(require('@fastify/swagger-ui'), {
-    routePrefix: '/swagger/ui',
-    swagger: {
-        info: {
-            title: 'Pallas API',
-            description: 'Pallas API',
-            version: '1.0.0',
-            termsOfService: 'https://mywebsite.io/tos',
-            contact: {
-                name: 'John Doe',
-                url: 'https://www.johndoe.com',
-                email: 'john.doe@email.com'
+server.register(fastifySwagger, {
+    "swagger": {
+        "info": {
+            "title": 'Replay Pallas API',
+            "description": 'Replay Pallas API Documentation',
+            "version": '1.0.0',
+            "termsOfService": 'https://replay-pallas.wildfiregames.ovh/PrivacyPolicy',
+            "contact": {
+                "name": 'Wildfire Games',
+                "url": 'https://play0ad.com',
+                "email": 'webmaster@wildfiregames.com'
             }
         },
-        host: '127.0.0.1:8080',
-        basePath: '',
-        schemes: ['http', 'https'],
-        consumes: ['application/json'],
-        produces: ['application/json'],
-        uiConfig: {
-            docExpansion: 'none', // expand/not all the documentations none|list|full
-            deepLinking: true
-        }
+        "securityDefinitions": {
+            "JWT": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "Authorization"
+            }
+        },
+        "security": [
+            {
+                "JWT": []
+            }
+        ],
     }
 })
-
-server.get('/vacuum', async (request: FastifyRequest, reply: any): Promise<any> => {
-    await server.database.run('VACUUM;');
-});
-
+server.register(fastifySwaggerUi, {
+    "routePrefix": '/swagger/ui',
+    "uiConfig": {
+        "docExpansion": 'none', // expand/not all the documentations none|list|full
+        "deepLinking": true
+    },
+})
 
 async function setupAuthent() {
     server.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
         if (request.url.startsWith("/users/token") || request.url.startsWith("/swagger/ui"))
             return;
-
 
         const token = request.headers.authorization?.replace("Bearer ", "") as string;
         if (!token) {
@@ -75,8 +79,8 @@ async function setupAuthent() {
         }
 
         const { payload } = await jose.jwtVerify<PallasTokenPayload>(token, JOSE_SECRET, {
-            issuer: 'urn:example:issuer',
-            audience: 'urn:example:audience',
+            issuer: 'https://replay-pallas-api.wildfiregames.ovh',
+            audience: 'https://replay-pallas-api.wildfiregames.ovh',
         })
 
         request.claims = payload;
@@ -84,13 +88,12 @@ async function setupAuthent() {
 }
 setupAuthent();
 
-
-
+server.register(HealthController, { prefix: '/health' });
 server.register(UserController, { prefix: '/users' });
 server.register(ReplayController, { prefix: '/replays' });
 server.register(LobbyUserController, { prefix: '/lobby-users' });
 server.register(LocalRatingsController, { prefix: '/local-ratings' });
-
+server.register(fastifySchedulePlugin);
 
 server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     if (err) {
@@ -99,7 +102,7 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     }
     sqlite3.verbose();
     const db: Database = await open({
-        "filename": "replays.sqlite3",
+        "filename": "dist/cache/replay-pallas.sqlite3",
         "mode": sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
         "driver": sqlite3.Database
     });
@@ -107,18 +110,34 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     await db.migrate({
         migrationsPath: 'src/migrations'
     });
+    
+    db.close();
 
-
-    server.database = db;
-    var bdb = BetterDatabase("replays.sqlite3", { readonly: false });
+    var bdb = BetterDatabase("dist/cache/replay-pallas.sqlite3", { readonly: false });
     EngineInstance.SetDataBase(bdb);
     bdb.pragma('journal_mode = WAL');
 
     await server.ready();
     server.swagger();
+    server.database = bdb;
 
-    const { ratingsDb, replayDb, aliasDb } =  init_LocalRatings();
+    const { ratingsDb, replayDb, aliasDb } = init_LocalRatings();
 
+    server.glicko2Manager = new Glicko2Manager(bdb);
+    if (server.glicko2Manager.hasCache()) {
+        server.glicko2Manager.load();
+    }
+    else {
+        server.glicko2Manager.rebuild();
+    }
+
+    const task = new Task(
+        'simple task',
+        () => { server.glicko2Manager.rebuild() },
+        (err) => { /* handle errors here */ }
+    )
+    const job = new SimpleIntervalJob({ seconds: 3600, }, task)
+    server.scheduler.addSimpleIntervalJob(job)
     server.ratingsDb = ratingsDb;
     server.replayDb = replayDb;
     server.aliasDb = aliasDb;

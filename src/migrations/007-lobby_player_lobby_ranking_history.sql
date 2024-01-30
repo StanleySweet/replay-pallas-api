@@ -2,17 +2,15 @@
 -- Up
 --------------------------------------------------------------------------------
 
-CREATE TABLE replay_user_link (
-  "id" integer NOT NULL CONSTRAINT "PK_replay_lobby_player_link" PRIMARY KEY,
-  "user_id" integer NOT NULL,
+CREATE TABLE lobby_ranking_history (
+  "id" integer NOT NULL CONSTRAINT "PK_lobby_players_rankings" PRIMARY KEY,
+  "lobby_player_id" integer NOT NULL,
+  "elo" integer NOT NULL,
   "match_id" text NOT NULL,
-  "modification_date" timestamp
+  "date" timestamp
   with
     time zone NULL DEFAULT (CURRENT_TIMESTAMP),
-  "creation_date" timestamp
-  with
-    time zone NULL DEFAULT (CURRENT_TIMESTAMP),
-  FOREIGN KEY(user_id) REFERENCES users(id)
+  FOREIGN KEY(lobby_player_id) REFERENCES lobby_players(id),
   FOREIGN KEY(match_id) REFERENCES replays(match_id)
 );
 
@@ -20,4 +18,6 @@ CREATE TABLE replay_user_link (
 -- Down
 --------------------------------------------------------------------------------
 
-DROP TABLE replay_user_link;
+DROP TABLE lobby_ranking_history;
+
+

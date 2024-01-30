@@ -5,7 +5,7 @@
 
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { AddUserRequest, AddUserSchema, DeleteUserByIdRequest, GetUserByIdRequest, LatestUser, LatestUsersSchema, LoginUserRequest, SetPermissionsRequest, User, UserDetail, UserDetailSchema, UserSchema, UsersSchema } from "../types/User";
+import { AddUserRequest, AddUserSchema, DeleteUserByIdRequest, EloGraph, GetUserByIdRequest, LatestUser, LatestUsersSchema, LoginUserRequest, SetPermissionsRequest, User, UserDetail, UserDetailSchema, UserSchema, UsersSchema } from "../types/User";
 import { z } from "zod"
 import * as jose from 'jose'
 import EUserRole from "../enumerations/EUserRole";
@@ -17,19 +17,60 @@ import snappy from 'snappy';
 
 const avg = (array: number[]) => array.reduce((a, b) => a + b) / array.length;
 
+const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGraph => {
+
+    const { current_game_elo} = fastify.database.prepare("Select elo as current_game_elo From lobby_ranking_history Where lobby_player_id = @lobby_player_id Order by id Desc").get({
+        "lobby_player_id": lobby_user,
+    }) as { "current_game_elo": number }
+
+    const current_glicko_elo = fastify.database.prepare("Select elo, deviation, volatility, preview_deviation From glicko2_rankings Where lobby_player_id = @lobby_player_id Order by match_count Desc").get({
+        "lobby_player_id": lobby_user,
+    }) as { "elo":number, "deviation":number, "volatility":number, "preview_deviation":number }
+
+    function avg_rating(singleGamesRatings: { "elo": number, "date": string }[]) : { "elo": number, "date": string }[] {
+        const singleGamesRatingsSum = [singleGamesRatings[0]];
+        for (let i = 1; i < singleGamesRatings.length; i++)
+            singleGamesRatingsSum.push({ "elo" : singleGamesRatingsSum[i - 1].elo + singleGamesRatings[i].elo, "date": singleGamesRatings[i].date});
+        return singleGamesRatingsSum.map((x, i) => {
+            x.elo = x.elo / (i + 1)
+            return x
+        });
+    }
+
+    var game_ranking = fastify.database.prepare("Select elo, date From lobby_ranking_history Where lobby_player_id = @lobby_player_id").all({
+        "lobby_player_id": lobby_user,
+    }) as { "elo": number, "date": string }[]
+
+    var glicko_ranking = fastify.database.prepare("Select elo, date From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
+        "lobby_player_id": lobby_user,
+    }) as { "elo": number, "date": string }[]
+
+    return {
+        "current_game_elo" : current_game_elo,
+        "current_glicko_elo" : current_glicko_elo,
+        "glicko_series": glicko_ranking.map((y, i) => ({ "x": y.date, "y": y.elo })),
+        "glicko_series_avg": avg_rating(glicko_ranking).map((y, i) => ({ "x": y.date, "y": y.elo })),
+        "game_series": game_ranking.map((y, i) => ({ "x": y.date, "y": y.elo })),
+        "game_series_avg": avg_rating(game_ranking).map((y, i) => ({ "x": y.date, "y": y.elo }))
+    };
+}
+
+
 
 const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
 
     let result: UserDetail = {} as UserDetail;
 
     // Technically it's a lobby user, but they are similar enough.
-    let user: UserDetail | undefined = await fastify.database.get<UserDetail>('SELECT id, nick, creation_date FROM lobby_players WHERE id=$id LIMIT 1', { "$id": request.params.id });
+    let user: UserDetail | undefined = fastify.database.prepare('SELECT id, nick, creation_date FROM lobby_players WHERE id=@id LIMIT 1').get({ "id": request.params.id }) as UserDetail;
     if (!user) {
         reply.code(204);
         return;
     }
 
-    const actual_user: User | undefined = await fastify.database.get<User>("SELECT id, nick, role FROM users WHERE nick = $nick LIMIT 1", { "$nick": user.nick });
+    result.graph = get_chart_data(fastify, request.params.id);
+
+    const actual_user: User | undefined = fastify.database.prepare("SELECT id, nick, role FROM users WHERE nick = @nick LIMIT 1").get({ "nick": user.nick }) as User | undefined;
 
     user = {
         id: actual_user ? actual_user.id : 0,
@@ -40,13 +81,13 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
 
     result = Object.assign(result, user);
 
-    const replays = await fastify.database.all<Replays>(`
+    const replays = fastify.database.prepare(`
     Select r.match_id, r.metadata From lobby_players lp
     Inner Join replay_lobby_player_link rlp
     On lp.id = rlp.lobby_player_id
     Inner Join replays r
     On r.match_id = rlp.match_id
-    Where lp.id = $id`, { "$id": request.params.id });
+    Where lp.id = @id`).all({ "id": request.params.id }) as Replays;
 
     result.replays = replays;
     for (const element of result.replays)
@@ -56,17 +97,16 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     reply.send(result);
 };
 
-const set_permission_for_user = async (request: SetPermissionsRequest, reply: FastifyReply,  fastify: FastifyInstance): Promise<void>  => {
-    if (request.claims.role !== EUserRole.ADMINISTRATOR) {
+const set_permission_for_user = (request: SetPermissionsRequest, reply: FastifyReply,  fastify: FastifyInstance): void  => {
+    if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
         return;
     }
 
-    await fastify.database.run("Update users Set role = $role where id = $id", {
-        "$id": request.body.id,
-        "$role": request.body.role,
+    fastify.database.prepare("Update users Set role = @role where id = @id").run({
+        "id": request.body.id,
+        "role": request.body.role,
     });
-
 
     reply.send(200);
 }
@@ -81,7 +121,7 @@ const compute_statistics = (result: UserDetail, replays: Replays) => {
     result.MostUsedCmd = mode(relevantPlayerData.map(a => a?.MostUsedCmd ?? ""))
     result.SecondMostUsedCmd = mode(relevantPlayerData.map(a => a?.SecondMostUsedCmd ?? ""))
 
-    const data = relevantPlayerData.map(a => a?.State === "won" ? 1.0 : a?.State === "defeated" ? 0.0 : 0.5);
+    const data = relevantPlayerData.map(a => a?.State === "won" ? 1.0 : a?.State === "defeated" ? 0.0 : 0.0);
     if (data.length)
         result.WinRateRatio = avg(data);
     else
@@ -97,18 +137,32 @@ const compute_statistics = (result: UserDetail, replays: Replays) => {
 }
 
 const get_user_details_by_id = async (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
+        reply.code(401);
+        return;
+    }
 
+    
     let result: UserDetail = {} as UserDetail;
 
-    const user: UserDetail | undefined = await fastify.database.get<UserDetail>('SELECT id, nick, role, creation_date FROM users WHERE id=$id LIMIT 1', { "$id": request.params.id });
+    const user: UserDetail | undefined = fastify.database.prepare('SELECT id, nick, role, creation_date FROM users WHERE id=@id LIMIT 1').get({ "id": request.params.id }) as UserDetail | undefined;
     if (!user) {
         reply.code(204);
         return;
     }
 
+    const lobby_user : User = fastify.database.prepare(`
+    Select lp.id From users u
+    Inner Join lobby_players lp
+    On lp.nick = u.nick  Where u.id = @id`).get({ "id": request.params.id }) as User;
+
+    if (lobby_user?.id)
+        result.graph = get_chart_data(fastify, lobby_user.id);
+
+
     result = Object.assign(result, user);
 
-    const replays = await fastify.database.all<Replays>(`
+    const replays = fastify.database.prepare(`
     Select r.match_id, r.metadata From users u
     Inner Join lobby_players lp
     On lp.nick = u.nick
@@ -116,7 +170,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     On lp.id = rlp.lobby_player_id
     Inner Join replays r
     On r.match_id = rlp.match_id
-    Where u.id = $id`, { "$id": request.params.id });
+    Where u.id = @id`).all({ "id": request.params.id }) as Replays;
 
     result.replays = replays;
     for (const element of result.replays)
@@ -128,12 +182,11 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
 const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     try {
-        const users: User[] = await fastify.database.all("SELECT id, nick, role FROM users WHERE email = $email and password = $password LIMIT 1", { "$email": request.body.email, "$password": request.body.password });
+        const users: User[] = fastify.database.prepare("SELECT id, nick, role FROM users WHERE email = @email and password = @password LIMIT 1").all({ "email": request.body.email, "password": request.body.password }) as User[];
         if (!users || !users.length) {
             reply.code(204);
             return;
         }
-
 
         const payload : PallasTokenPayload = {
             'role': users[0].role,
@@ -143,8 +196,8 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
         const jwt: string = await new jose.SignJWT(payload)
             .setProtectedHeader({ alg })
             .setIssuedAt()
-            .setIssuer('urn:example:issuer')
-            .setAudience('urn:example:audience')
+            .setIssuer('https://replay-pallas-api.wildfiregames.ovh')
+            .setAudience('https://replay-pallas-api.wildfiregames.ovh')
             .setExpirationTime('2h')
             .sign(JOSE_SECRET)
 
@@ -164,14 +217,14 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
     }
 }
 
-const get_user_by_id = async (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role !== EUserRole.ADMINISTRATOR) {
+const get_user_by_id = (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
         return;
     }
 
     try {
-        const users: User[] = await fastify.database.all('SELECT id, nick, role FROM users WHERE id=$id LIMIT 1', { "$id": request.params.id });
+        const users: User[] = fastify.database.prepare('SELECT id, nick, role FROM users WHERE id = @id LIMIT 1').all({ "id": request.params.id }) as User[];
         if (!users || !users.length) {
             reply.code(204);
             return;
@@ -185,14 +238,14 @@ const get_user_by_id = async (request: GetUserByIdRequest, reply: FastifyReply, 
     }
 }
 
-const get_latest_users = async (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role !== EUserRole.ADMINISTRATOR) {
+const get_latest_users = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
         return;
     }
 
     try {
-        const users: LatestUser[] = await fastify.database.all('SELECT id, nick, role, creation_date FROM users ORDER BY modification_date DESC LIMIT 10');
+        const users: LatestUser[] = fastify.database.prepare('SELECT id, nick, role, creation_date FROM users ORDER BY modification_date DESC LIMIT 10').all() as LatestUser[];
         if (!users || !users.length) {
             reply.code(204);
             return;
@@ -205,14 +258,14 @@ const get_latest_users = async (request: FastifyRequest, reply: FastifyReply, fa
     }
 };
 
-const get_users = async (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role !== EUserRole.ADMINISTRATOR) {
+const get_users = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
         return;
     }
 
     try {
-        const users: User[] = await fastify.database.all('SELECT id, nick, role FROM users');
+        const users: User[] = fastify.database.prepare('SELECT id, nick, role FROM users').all() as User[];
         if (!users || !users.length) {
             reply.code(204);
             return;
@@ -226,15 +279,14 @@ const get_users = async (request: FastifyRequest, reply: FastifyReply, fastify: 
     }
 };
 
-
-const delete_user = async (request: DeleteUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role !== EUserRole.ADMINISTRATOR) {
+const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
         return;
     }
 
     try {
-        const result = await fastify.database.run('DELETE FROM users WHERE id=$userId', { "$userId": 1 });
+        const result = fastify.database.prepare('DELETE FROM users WHERE id = @userId').run({ "userId": request.params.id });
         reply.send(result)
     }
     catch (err) {
@@ -243,14 +295,13 @@ const delete_user = async (request: DeleteUserByIdRequest, reply: FastifyReply, 
     }
 };
 
-
-const create_user = async (request: AddUserRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
+const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     try {
-        await fastify.database.run(`INSERT INTO users (nick, password, email, role) VALUES($nick, $password, $email, $role)`, {
-            "$nick": request.body.nick,
-            "$password": request.body.password,
-            "$email": request.body.email,
-            "$role": EUserRole.READER,
+        fastify.database.prepare(`INSERT INTO users (nick, password, email, role) VALUES(@nick, @password, @email, @role)`).run({
+            "nick": request.body.nick,
+            "password": request.body.password,
+            "email": request.body.email,
+            "role": EUserRole.READER,
         });
         reply.code(201);
     }

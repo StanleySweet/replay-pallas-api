@@ -8,14 +8,14 @@ import EUserRole from "../enumerations/EUserRole";
 import { User, UsersSchema } from "../types/User";
 import zodToJsonSchema from "zod-to-json-schema";
 
-const get_lobby_users = async (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
-    if (request.claims.role <= EUserRole.READER) {
+const get_lobby_users = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
         return;
     }
 
     try {
-        const users: User[] = await fastify.database.all('SELECT id, nick, 0 as role FROM lobby_players');
+        const users: User[] = fastify.database.prepare('SELECT id, nick, 0 as role FROM lobby_players').all() as User[];
         if (!users || !users.length) {
             reply.code(204);
             return;

@@ -26,7 +26,7 @@ type PallasTokenPayload = z.infer<typeof PallasTokenPayloadSchema>;
 
 declare module 'fastify' {
     interface FastifyRequest {
-        claims: PallasTokenPayload
+        claims?: PallasTokenPayload
     }
 }
 

@@ -10,7 +10,8 @@ const snappy = require('snappy')
 const ReplaySchema = z.object({
     metadata: ReplayMetaDataSchema,
     filedata: z.any(),
-    match_id: z.string()
+    match_id: z.string(),
+    creation_date: z.date().optional()
 });
 
 type Replay = z.infer<typeof ReplaySchema>;
@@ -21,15 +22,15 @@ function padNumber(number : number) {
     return number.toString().padStart(2, '0');
 }
 
-const ToDbFormat = async (replay: Replay) => {
+const ToDbFormat = (replay: Replay) => {
     const currentDate = new Date((replay.metadata.timestamp ?? 0) * 1000);
     const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
 
     return {
-        "$matchId": replay.metadata.matchID,
-        "$metadata": await snappy.compress(JSON.stringify(replay.metadata)),
-        "$filedata": await snappy.compress(JSON.stringify(replay.filedata)),
-        "$creationDate": formattedDate
+        "matchId": replay.metadata.matchID,
+        "metadata": snappy.compressSync(JSON.stringify(replay.metadata)),
+        "filedata": snappy.compressSync(JSON.stringify(replay.filedata)),
+        "creationDate": formattedDate
     }
 }
 
