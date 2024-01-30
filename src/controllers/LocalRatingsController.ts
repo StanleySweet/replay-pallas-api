@@ -263,19 +263,19 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
         db[x].matches
     ]).sort((a, b) => (b[1] as number) - (a[1] as number));
 
-
     const users: LatestUser[] = fastify.database.prepare(`SELECT lp.id, lp.nick, (CASE  when u.role IS  Null then 0 else u.role END)
-    as role, CASE When  u.creation_date is null then lp.creation_date else lp.creation_date End as creation_date FROM lobby_players lp
+    as role, CASE When u.creation_date is null then lp.creation_date else lp.creation_date End as creation_date FROM lobby_players lp
     Left Join users u on u.nick = lp.nick
     Where lp.nick in (${items.map(a => "'" + a[0] + "'").join(', ')})`).all() as LatestUser[];
 
     // Construct table rows, using the previously created items
     const rows = items.map((x, i): Row => {
+        const user =  users.filter(a => a.nick === x[0])[0];
         return {
             "rank": i + 1, // rank
             "rating": formatRating_LocalRatings(x[1] as number), // rating
             "matches": x[2] as number, // matches
-            "user": users.filter(a => a.nick === x[0])[0]
+            "user": user
         }
     });
 
@@ -369,7 +369,6 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
         }
     }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_civ_chart_data(request, reply, fastify));
 
-
     fastify.post("/evolution-data", {
         schema: {
             body: zodToJsonSchema(GetPlayerProfileSchema),
@@ -423,7 +422,6 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
         }
     }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_glicko_ratings(request, reply, fastify));
 
-    
     fastify.post("/rebuild-database", {
         schema: {
             response: {
