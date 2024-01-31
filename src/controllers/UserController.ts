@@ -5,7 +5,7 @@
 
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { AddUserRequest, AddUserSchema, DeleteUserByIdRequest, EloGraph, GetUserByIdRequest, LatestUser, LatestUsersSchema, LoginUserRequest, SetPermissionsRequest, User, UserDetail, UserDetailSchema, UserSchema, UsersSchema } from "../types/User";
+import { AddUserRequest, AddUserSchema, DeleteUserByIdRequest, EloGraph, GetUserByIdRequest, GlickoElo, LatestUser, LatestUsersSchema, LoginUserRequest, SetPermissionsRequest, User, UserDetail, UserDetailSchema, UserSchema, UsersSchema } from "../types/User";
 import { z } from "zod"
 import * as jose from 'jose'
 import EUserRole from "../enumerations/EUserRole";
@@ -14,18 +14,11 @@ import { JOSE_ALG as alg, JOSE_SECRET } from "../project_globals";
 import { Replays } from "../types/Replay";
 import { mode } from "../Utils";
 import snappy from 'snappy';
+import { Rating } from "../instant-glicko-2/Rating";
 
 const avg = (array: number[]) => array.reduce((a, b) => a + b) / array.length;
 
 const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGraph => {
-
-    const { current_game_elo} = fastify.database.prepare("Select elo as current_game_elo From lobby_ranking_history Where lobby_player_id = @lobby_player_id Order by id Desc").get({
-        "lobby_player_id": lobby_user,
-    }) as { "current_game_elo": number }
-
-    const current_glicko_elo = fastify.database.prepare("Select elo, deviation, volatility, preview_deviation From glicko2_rankings Where lobby_player_id = @lobby_player_id Order by match_count Desc").get({
-        "lobby_player_id": lobby_user,
-    }) as { "elo":number, "deviation":number, "volatility":number, "preview_deviation":number }
 
     function avg_rating(singleGamesRatings: { "elo": number, "date": string }[]) : { "elo": number, "date": string }[] {
         const singleGamesRatingsSum = [singleGamesRatings[0]];
@@ -41,15 +34,40 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
         "lobby_player_id": lobby_user,
     }) as { "elo": number, "date": string }[]
 
-    var glicko_ranking = fastify.database.prepare("Select elo, date From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
+    var glicko_ranking = fastify.database.prepare("Select elo, date, deviation, volatility, preview_deviation From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
         "lobby_player_id": lobby_user,
-    }) as { "elo": number, "date": string }[]
+    }) as GlickoElo[]
+
+    game_ranking = game_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    glicko_ranking = glicko_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    let current_glicko_elo : GlickoElo;
+    if( glicko_ranking.length){
+        current_glicko_elo = glicko_ranking[glicko_ranking.length -1];
+    }
+    else {
+        current_glicko_elo = {
+            elo: 1500,
+            date: '',
+            volatility: 0.09,
+            preview_deviation: 350,
+            deviation: 350
+        }
+    }
+
+    let current_game_elo : number;
+    if( glicko_ranking.length){
+        current_game_elo = game_ranking[game_ranking.length -1].elo;
+    }
+    else {
+        current_game_elo = 1200;
+    }
 
     return {
         "current_game_elo" : current_game_elo,
         "current_glicko_elo" : current_glicko_elo,
         "glicko_series": glicko_ranking.map((y, i) => ({ "x": y.date, "y": y.elo })),
-        "glicko_series_avg": avg_rating(glicko_ranking).map((y, i) => ({ "x": y.date, "y": y.elo })),
+        "glicko_series_avg": avg_rating(glicko_ranking.map(b => { return { elo: b.elo, date: b.date}})).map((y, i) => ({ "x": y.date, "y": y.elo })),
         "game_series": game_ranking.map((y, i) => ({ "x": y.date, "y": y.elo })),
         "game_series_avg": avg_rating(game_ranking).map((y, i) => ({ "x": y.date, "y": y.elo }))
     };

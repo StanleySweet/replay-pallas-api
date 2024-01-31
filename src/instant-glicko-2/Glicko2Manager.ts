@@ -127,7 +127,7 @@ class Glicko2Manager {
         try {
             this.rebuilding = true;
             this.database.prepare('Delete From glicko2_rankings;').run();
-            const replays: Replays = this.database.prepare('Select r.metadata, r.creation_date From replays r Where 2 = (Select Count(*) From replay_lobby_player_link lp Where lp.match_id = r.match_id ) Order by r.creation_date Desc;').all() as Replays;
+            const replays: Replays = this.database.prepare('Select r.metadata, r.creation_date From replays r Where 2 = (Select Count(*) From replay_lobby_player_link lp Where lp.match_id = r.match_id ) Order by r.creation_date ASC;').all() as Replays;
             this.ratings = [];
             this.process_replays(replays);
             this.save();

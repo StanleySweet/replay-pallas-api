@@ -32,6 +32,7 @@ const GlickoEloSchema = z.object({
     deviation: z.number(),
     volatility: z.number(),
     preview_deviation: z.number(),
+    date: z.string(),
 })
 
 const SeriesDataSchema  = z.object({
@@ -83,6 +84,7 @@ type LoginUserRequest = FastifyRequest<{
 type GetUserByIdRequest = FastifyRequest<{ Params: { id: number } }>;
 type SetPermissionsRequest = FastifyRequest<{ Body: { id: number, role: EUserRole } }>;
 type DeleteUserByIdRequest = FastifyRequest<{ Params: { id: number } }>;
+type GlickoElo = z.infer<typeof GlickoEloSchema>;
 
-export type { User, EloGraph, AddUser, AddUserRequest, SetPermissionsRequest, LatestUser, LoginUserRequest, GetUserByIdRequest, DeleteUserByIdRequest, UserDetail }
+export type { User, GlickoElo, EloGraph, AddUser, AddUserRequest, SetPermissionsRequest, LatestUser, LoginUserRequest, GetUserByIdRequest, DeleteUserByIdRequest, UserDetail }
 export { UserSchema, UsersSchema, AddUserSchema, LatestUserSchema, LatestUsersSchema, UserDetailSchema }
