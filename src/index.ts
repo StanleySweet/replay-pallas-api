@@ -124,7 +124,6 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     const { ratingsDb, replayDb, aliasDb } = init_LocalRatings();
 
     server.glicko2Manager = new Glicko2Manager(bdb);
-    server.glicko2Manager.rebuild();
     if (server.glicko2Manager.hasCache()) {
         server.glicko2Manager.load();
     }
