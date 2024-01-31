@@ -115,7 +115,7 @@ const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify
             "replayDb": fastify.replayDb,
             "aliasDb": fastify.aliasDb,
         });
-        reply.code(200);
+        reply.send();
     }
     catch (err) {
         console.error(err);
