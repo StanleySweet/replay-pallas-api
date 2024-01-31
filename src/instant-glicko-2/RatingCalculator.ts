@@ -72,7 +72,7 @@ class RatingCalculator {
      * Used by the calculation engine, to move interim calculations into their "proper" places.
      */
     finaliseRating(rating : Rating): void {
-        rating.rating = this.convertRatingToOriginalGlickoScale(rating.workingRatingDeviation);
+        rating.rating = this.convertRatingToOriginalGlickoScale(rating.workingRating);
         rating.ratingDeviation = this.convertRatingDeviationToOriginalGlickoScale(rating.workingRatingDeviation);
         rating.volatility = rating.workingVolatility;
         rating.workingRatingDeviation = 0;
