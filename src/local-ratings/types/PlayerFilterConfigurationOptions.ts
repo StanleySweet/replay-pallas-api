@@ -10,4 +10,4 @@ type PlayerFilterConfigurationOptions = {
 
 export type {
     PlayerFilterConfigurationOptions
-}
+};

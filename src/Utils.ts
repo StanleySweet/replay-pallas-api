@@ -11,4 +11,4 @@ commandArray.reduce(
 
 export {
     mode
-}
+};

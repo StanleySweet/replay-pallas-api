@@ -12,13 +12,13 @@ const PallasUserTokenSchema = z.object({
     id: z.number(),
     nick: z.string(),
     expires_in: z.number()
-})
+});
 
 const PallasTokenPayloadSchema = z.object({
     role: z.nativeEnum(EUserRole),
     nick: z.string(),
     id: z.number()
-})
+});
 
 
 type PallasUserToken = z.infer<typeof PallasUserTokenSchema>;
@@ -30,5 +30,5 @@ declare module 'fastify' {
     }
 }
 
-export type { PallasUserToken, PallasTokenPayload }
-export { PallasUserTokenSchema, PallasTokenPayloadSchema }
+export type { PallasUserToken, PallasTokenPayload };
+export { PallasUserTokenSchema, PallasTokenPayloadSchema };

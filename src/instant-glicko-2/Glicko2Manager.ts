@@ -3,15 +3,16 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
-import { Database } from 'better-sqlite3'
-import { Replay, Replays } from '../types/Replay';
+import { Database } from 'better-sqlite3';
+import { Replays } from '../types/Replay';
 import snappy from 'snappy';
 import { RatingCalculator } from './RatingCalculator';
 import { RatingCalculatorSettings } from './RatingCalculatorSettings';
 import { Rating } from './Rating';
-import { GameRatingPeriodResults } from './RatingPeriodResults';
-import pino from 'pino'
+import { FloatingRatingPeriodResults, GameRatingPeriodResults } from './RatingPeriodResults';
+import pino from 'pino';
 import { GameResult } from './GameResult';
+import { FloatingResult } from './FloatingResult';
 declare module 'fastify' {
     interface FastifyInstance {
         glicko2Manager: Glicko2Manager
@@ -24,22 +25,21 @@ class PallasGlickoRating {
     "deviation": number;
     "volatility": number;
     "lobby_player_id": number;
-    "match_count": number
+    "match_count": number;
     "preview_deviation": number;
-    "date":string
+    "date":string;
 }
 
 
 class Glicko2Manager {
     database: Database;
-    ratings: PallasGlickoRating[]
+    ratings: PallasGlickoRating[];
     calculator: RatingCalculator;
     rebuilding: boolean;
     constructor(database: Database) {
         const settings: RatingCalculatorSettings = new RatingCalculatorSettings();
         // Chosen so a typical player's RD goes from 60 -> 110 in 1 year
-        settings.RatingPeriodsPerDay = 0.21436
-        settings.DefaultVolatility = 0.09
+        settings.RatingPeriodsPerDay = 0.21436;
         this.calculator = new RatingCalculator(settings);
         this.database = database;
         this.ratings = [];
@@ -53,17 +53,19 @@ class Glicko2Manager {
 
     load(): void {
         this.ratings = this.database.prepare('Select * From glicko2_rankings;').all() as PallasGlickoRating[];
-        pino().info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded for ${new Set(this.ratings.map(a => a.lobby_player_id)).size} player(s).`)
+        pino().info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded for ${new Set(this.ratings.map(a => a.lobby_player_id)).size} player(s).`);
     }
 
     process_replays(replays: Replays): void {
-        var players: Map<string, Rating> = new Map<string, Rating>();
-        var playersIds: Map<string, number> = new Map<string, number>();
-        var playersMatchCount: Map<string, number> = new Map<string, number>();
-        var matches: GameResult[] = [];
+        const players: Map<string, Rating> = new Map<string, Rating>();
+        const playersIds: Map<string, number> = new Map<string, number>();
+        const playersMatchCount: Map<string, number> = new Map<string, number>();
+        const matches: GameResult[] = [];
+        let counter =  0;
+        let winCounter =  0;
         for (const element of replays) {
             if (Buffer.isBuffer(element.metadata))
-                element.metadata = JSON.parse(snappy.uncompressSync(element.metadata as Buffer, { asBuffer: false }) as string)
+                element.metadata = JSON.parse(snappy.uncompressSync(element.metadata as Buffer, { asBuffer: false }) as string);
 
             const date_string = element.creation_date + "";
             if (typeof element.creation_date === 'string' || element.creation_date instanceof String)
@@ -73,37 +75,49 @@ class Glicko2Manager {
             if (!playerData || !playerData.some(a => a.State === "won"))
                 continue;
 
+
+
+
             if (playerData[0].NameWithoutRating && playerData[1].NameWithoutRating) {
-                let gPlayer1: Rating;
+                
 
                 const player0Name = playerData[0].NameWithoutRating;
                 if (!players.has(player0Name)) {
-                    players.set(player0Name, new Rating(this.calculator.settings.DefaultRating, this.calculator.settings.DefaultDeviation, this.calculator.settings.DefaultVolatility, 0, element.creation_date))
-                    playersIds.set(player0Name, playerData[0].LobbyUserId as number)
+                    players.set(player0Name, new Rating(Rating.defaultRating, Rating.defaultDeviation, Rating.defaultVolatility, 0, element.creation_date));
+                    playersIds.set(player0Name, playerData[0].LobbyUserId as number);
                 }
 
-                gPlayer1 = players.get(player0Name) as Rating;
+                const gPlayer1: Rating = players.get(player0Name) as Rating;
+                gPlayer1.numberOfResults = 0;
 
-                let gPlayer2: Rating;
-
+    
                 const player1Name = playerData[1].NameWithoutRating;
 
-                if (!players.has(player1Name)) {
-                    players.set(player1Name, new Rating(this.calculator.settings.DefaultRating, this.calculator.settings.DefaultDeviation, this.calculator.settings.DefaultVolatility, 0, element.creation_date))
-                    playersIds.set(player1Name, playerData[1].LobbyUserId as number)
+                if(player0Name === "Feldfeld" || player1Name === "Feldfeld"){
+                    ++counter;
                 }
 
-                gPlayer2 = players.get(player1Name) as Rating;
+                if (!players.has(player1Name)) {
+                    players.set(player1Name, new Rating(Rating.defaultRating, Rating.defaultDeviation, Rating.defaultVolatility, 0, element.creation_date));
+                    playersIds.set(player1Name, playerData[1].LobbyUserId as number);
+                }
+
+                const gPlayer2 = players.get(player1Name) as Rating;
+                gPlayer2.numberOfResults = 0;
 
                 const winner = playerData[1].State === "won" ? gPlayer2 : gPlayer1;
                 const loser = playerData[1].State !== "won" ? gPlayer2 : gPlayer1;
 
-                playersMatchCount.set(player0Name, (playersMatchCount.get(player0Name) ?? 0) + 1)
-                playersMatchCount.set(player1Name, (playersMatchCount.get(player1Name) ?? 0) + 1)
+                if(player0Name === "Feldfeld" &&  players.get(player0Name) === winner|| player1Name === "Feldfeld" &&  players.get(player1Name) === winner){
+                    ++winCounter;
+                }
+
+                playersMatchCount.set(player0Name, (playersMatchCount.get(player0Name) ?? 0) + 1);
+                playersMatchCount.set(player1Name, (playersMatchCount.get(player1Name) ?? 0) + 1);
 
                 matches.push(new GameResult(winner, loser, false));
                 const matchList: GameRatingPeriodResults = new GameRatingPeriodResults(matches);
-                this.calculator.updateRatings(matchList, false);
+                this.calculator.updateRatings(matchList, true);
                 for (const [key, value] of players) {
                     this.ratings.push(Object.assign(new PallasGlickoRating(), {
                         "elo": value.rating,
@@ -112,13 +126,39 @@ class Glicko2Manager {
                         "lobby_player_id": playersIds.get(key),
                         "match_count": playersMatchCount.get(key),
                         "date": date_string,
-                        "preview_deviation": this.calculator.previewDeviation(value, new Date(), false) ?? this.calculator.settings.DefaultDeviation
+                        "preview_deviation": this.calculator.previewDeviation(value, new Date(), false) ?? Rating.defaultDeviation
                     }));
                 }
             }
         }
 
-        pino().info(`Rebuilding the glicko2 database. ${Array.from(players.keys()).length} ratings(s) were added for ${playersIds.size} player(s).`)
+        console.log(counter, winCounter);
+
+        const player1 = new Rating(1500.0, 200.0, 0.06, 0, new Date());
+        const player2 = new Rating(1400.0, 30.0, 0.06, 0, new Date());
+        const player3 = new Rating(1550.0, 100.0, 0.06, 0, new Date());
+        const player4 = new Rating(1700.0, 300.0, 0.06, 0, new Date());
+        
+        const matchList: GameRatingPeriodResults = new GameRatingPeriodResults([
+            (new GameResult(player1, player2, false)),
+            (new GameResult(player3, player1, false)),
+            (new GameResult(player4, player1, false)),
+        ]);
+        // this.calculator.updateRatings(matchList, true);
+
+        // const matchList: FloatingRatingPeriodResults = new FloatingRatingPeriodResults([
+        //     (new FloatingResult(player1, player2, 100.0)),
+        //     (new FloatingResult(player3, player1, 100.0)),
+        //     (new FloatingResult(player4, player1, 100.0)),
+        // ]);
+        this.calculator.updateRatings(matchList, true);
+
+        console.log(player1);
+
+
+
+
+        pino().info(`Rebuilding the glicko2 database. ${Array.from(players.keys()).length} ratings(s) were added for ${playersIds.size} player(s).`);
     }
 
     rebuild(): void {
@@ -166,4 +206,4 @@ class Glicko2Manager {
 
 export {
     Glicko2Manager
-}
+};

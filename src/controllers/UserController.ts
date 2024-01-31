@@ -6,15 +6,14 @@
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { AddUserRequest, AddUserSchema, DeleteUserByIdRequest, EloGraph, GetUserByIdRequest, GlickoElo, LatestUser, LatestUsersSchema, LoginUserRequest, SetPermissionsRequest, User, UserDetail, UserDetailSchema, UserSchema, UsersSchema } from "../types/User";
-import { z } from "zod"
-import * as jose from 'jose'
+import { z } from "zod";
+import * as jose from 'jose';
 import EUserRole from "../enumerations/EUserRole";
 import { PallasTokenPayload, PallasUserToken, PallasUserTokenSchema } from "../types/PallasToken";
 import { JOSE_ALG as alg, JOSE_SECRET } from "../project_globals";
 import { Replays } from "../types/Replay";
 import { mode } from "../Utils";
 import snappy from 'snappy';
-import { Rating } from "../instant-glicko-2/Rating";
 
 const avg = (array: number[]) => array.reduce((a, b) => a + b) / array.length;
 
@@ -25,21 +24,21 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
         for (let i = 1; i < singleGamesRatings.length; i++)
             singleGamesRatingsSum.push({ "elo" : singleGamesRatingsSum[i - 1].elo + singleGamesRatings[i].elo, "date": singleGamesRatings[i].date});
         return singleGamesRatingsSum.map((x, i) => {
-            x.elo = x.elo / (i + 1)
-            return x
+            x.elo = x.elo / (i + 1);
+            return x;
         });
     }
 
-    var game_ranking = fastify.database.prepare("Select elo, date From lobby_ranking_history Where lobby_player_id = @lobby_player_id").all({
+    let game_ranking = fastify.database.prepare("Select elo, date From lobby_ranking_history Where lobby_player_id = @lobby_player_id").all({
         "lobby_player_id": lobby_user,
-    }) as { "elo": number, "date": string }[]
+    }) as { "elo": number, "date": string }[];
 
-    var glicko_ranking = fastify.database.prepare("Select elo, date, deviation, volatility, preview_deviation From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
+    let glicko_ranking = fastify.database.prepare("Select elo, date, deviation, volatility, preview_deviation From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
         "lobby_player_id": lobby_user,
-    }) as GlickoElo[]
+    }) as GlickoElo[];
 
-    game_ranking = game_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    glicko_ranking = glicko_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    game_ranking = game_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    glicko_ranking = glicko_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     let current_glicko_elo : GlickoElo;
     if( glicko_ranking.length){
@@ -52,7 +51,7 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
             volatility: 0.09,
             preview_deviation: 350,
             deviation: 350
-        }
+        };
     }
 
     let current_game_elo : number;
@@ -66,12 +65,12 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
     return {
         "current_game_elo" : current_game_elo,
         "current_glicko_elo" : current_glicko_elo,
-        "glicko_series": glicko_ranking.map((y, i) => ({ "x": y.date, "y": y.elo })),
-        "glicko_series_avg": avg_rating(glicko_ranking.map(b => { return { elo: b.elo, date: b.date}})).map((y, i) => ({ "x": y.date, "y": y.elo })),
-        "game_series": game_ranking.map((y, i) => ({ "x": y.date, "y": y.elo })),
-        "game_series_avg": avg_rating(game_ranking).map((y, i) => ({ "x": y.date, "y": y.elo }))
+        "glicko_series": glicko_ranking.map((y) => ({ "x": y.date, "y": y.elo })),
+        "glicko_series_avg": avg_rating(glicko_ranking.map(b => { return { elo: b.elo, date: b.date};})).map((y) => ({ "x": y.date, "y": y.elo })),
+        "game_series": game_ranking.map((y) => ({ "x": y.date, "y": y.elo })),
+        "game_series_avg": avg_rating(game_ranking).map((y) => ({ "x": y.date, "y": y.elo }))
     };
-}
+};
 
 
 
@@ -109,7 +108,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
 
     result.replays = replays;
     for (const element of result.replays)
-        element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
+        element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
 
     compute_statistics(result, replays);
     reply.send(result);
@@ -127,17 +126,17 @@ const set_permission_for_user = (request: SetPermissionsRequest, reply: FastifyR
     });
 
     reply.send(200);
-}
+};
 
 const compute_statistics = (result: UserDetail, replays: Replays) => {
-    const relevantPlayerData = replays.map(b => b.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0])
+    const relevantPlayerData = replays.map(b => b.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0]);
     result.MatchCount = replays.length;
     if (replays.length)
-        result.TotalPlayedTime = replays.map(a => a.metadata.settings?.MatchDuration ?? 0).reduce((a, b) => a + b)
+        result.TotalPlayedTime = replays.map(a => a.metadata.settings?.MatchDuration ?? 0).reduce((a, b) => a + b);
     else
         result.TotalPlayedTime = 0;
-    result.MostUsedCmd = mode(relevantPlayerData.map(a => a?.MostUsedCmd ?? ""))
-    result.SecondMostUsedCmd = mode(relevantPlayerData.map(a => a?.SecondMostUsedCmd ?? ""))
+    result.MostUsedCmd = mode(relevantPlayerData.map(a => a?.MostUsedCmd ?? ""));
+    result.SecondMostUsedCmd = mode(relevantPlayerData.map(a => a?.SecondMostUsedCmd ?? ""));
 
     const data = relevantPlayerData.map(a => a?.State === "won" ? 1.0 : a?.State === "defeated" ? 0.0 : 0.0);
     if (data.length)
@@ -152,7 +151,7 @@ const compute_statistics = (result: UserDetail, replays: Replays) => {
     else
         result.AverageCPM = -1;
 
-}
+};
 
 const get_user_details_by_id = async (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
@@ -192,7 +191,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
     result.replays = replays;
     for (const element of result.replays)
-        element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
+        element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
 
     compute_statistics(result, replays);
     reply.send(result);
@@ -210,14 +209,14 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
             'role': users[0].role,
             'nick': users[0].nick,
             'id': users[0].id
-        }
+        };
         const jwt: string = await new jose.SignJWT(payload)
             .setProtectedHeader({ alg })
             .setIssuedAt()
             .setIssuer('https://replay-pallas-api.wildfiregames.ovh')
             .setAudience('https://replay-pallas-api.wildfiregames.ovh')
             .setExpirationTime('2h')
-            .sign(JOSE_SECRET)
+            .sign(JOSE_SECRET);
 
 
         const result: PallasUserToken = {
@@ -233,7 +232,7 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
         console.error(err);
         reply.code(400);
     }
-}
+};
 
 const get_user_by_id = (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
@@ -254,7 +253,7 @@ const get_user_by_id = (request: GetUserByIdRequest, reply: FastifyReply, fastif
         console.error(err);
         reply.code(400);
     }
-}
+};
 
 const get_latest_users = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
@@ -268,7 +267,7 @@ const get_latest_users = (request: FastifyRequest, reply: FastifyReply, fastify:
             reply.code(204);
             return;
         }
-        reply.send(users)
+        reply.send(users);
     }
     catch (err) {
         console.error(err);
@@ -289,7 +288,7 @@ const get_users = (request: FastifyRequest, reply: FastifyReply, fastify: Fastif
             return;
         }
 
-        reply.send(users)
+        reply.send(users);
     }
     catch (err) {
         console.error(err);
@@ -305,7 +304,7 @@ const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastif
 
     try {
         const result = fastify.database.prepare('DELETE FROM users WHERE id = @userId').run({ "userId": request.params.id });
-        reply.send(result)
+        reply.send(result);
     }
     catch (err) {
         console.error(err);

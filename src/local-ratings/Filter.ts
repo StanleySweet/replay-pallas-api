@@ -8,7 +8,7 @@ import { timeToString } from "./utilities/functions_utility";
  */
 class LocalRatingsFilter
 {
-    configOptions
+    configOptions;
 
     constructor()
     {
@@ -313,4 +313,4 @@ class LocalRatingsFilter
 
 export {
     LocalRatingsFilter
-}
+};

@@ -18,14 +18,14 @@ const UserSchema = z.object({
     "id": z.number(),
     "nick": z.string(),
     "role": z.nativeEnum(EUserRole),
-})
+});
 
 const LatestUserSchema = z.object({
     "id": z.number(),
     "nick": z.string(),
     "role": z.nativeEnum(EUserRole),
     "creation_date": z.date()
-})
+});
 
 const GlickoEloSchema = z.object({
     elo: z.number(),
@@ -33,7 +33,7 @@ const GlickoEloSchema = z.object({
     volatility: z.number(),
     preview_deviation: z.number(),
     date: z.string(),
-})
+});
 
 const SeriesDataSchema  = z.object({
     x: z.string(),
@@ -86,5 +86,5 @@ type SetPermissionsRequest = FastifyRequest<{ Body: { id: number, role: EUserRol
 type DeleteUserByIdRequest = FastifyRequest<{ Params: { id: number } }>;
 type GlickoElo = z.infer<typeof GlickoEloSchema>;
 
-export type { User, GlickoElo, EloGraph, AddUser, AddUserRequest, SetPermissionsRequest, LatestUser, LoginUserRequest, GetUserByIdRequest, DeleteUserByIdRequest, UserDetail }
-export { UserSchema, UsersSchema, AddUserSchema, LatestUserSchema, LatestUsersSchema, UserDetailSchema }
+export type { User, GlickoElo, EloGraph, AddUser, AddUserRequest, SetPermissionsRequest, LatestUser, LoginUserRequest, GetUserByIdRequest, DeleteUserByIdRequest, UserDetail };
+export { UserSchema, UsersSchema, AddUserSchema, LatestUserSchema, LatestUsersSchema, UserDetailSchema };

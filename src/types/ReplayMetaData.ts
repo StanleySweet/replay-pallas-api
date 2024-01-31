@@ -3,7 +3,7 @@
  * SPDX-FileCopyrightText: © 2022 Stanislas Daniel Claude Dolcini
  */
 
-import { z } from "zod"
+import { z } from "zod";
 import { MetadataSettingsSchema } from "./MetadataSettings";
 
 const ReplayMetaDataSchema = z.object({
@@ -25,4 +25,4 @@ export type {
 
 export {
     ReplayMetaDataSchema
-}
+};

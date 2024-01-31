@@ -1,4 +1,4 @@
-import { EngineInstance as Engine } from "../types/Engine"
+import { EngineInstance as Engine } from "../types/Engine";
 import { PlayerFilterConfigurationOptions } from "./types/PlayerFilterConfigurationOptions";
 import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
 
@@ -109,4 +109,4 @@ class LocalRatingsPlayerFilter {
 
 export {
     LocalRatingsPlayerFilter
-}
+};

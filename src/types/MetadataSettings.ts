@@ -3,7 +3,7 @@
  * SPDX-FileCopyrightText: © 2022 Stanislas Daniel Claude Dolcini
  */
 
-import { z } from "zod"
+import { z } from "zod";
 import { PlayerDataSchema } from "./PlayerData";
 
 const MetadataSettingsSchema = z.object({
@@ -35,4 +35,4 @@ export type {
 
 export {
     MetadataSettingsSchema
-}
+};

@@ -3,8 +3,8 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
-import { LocalRatingsSettings } from '../Settings'
-import { LocalRatingsCache } from '../Cache'
+import { LocalRatingsSettings } from '../Settings';
+import { LocalRatingsCache } from '../Cache';
 import { LocalRatingsReplayDB } from '../ReplayDB';
 import { LocalRatingsRatingsDB } from '../RatingsDB';
 import { LocalRatingsAlias } from '../Alias';
@@ -152,4 +152,4 @@ export {
     getMean_LocalRatings,
     formatRating_LocalRatings,
     update_LocalRatings
-}
+};

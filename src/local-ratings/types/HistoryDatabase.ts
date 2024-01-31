@@ -34,4 +34,4 @@ export type {
     LocalRatingsHistoryDirectoryElement,
     LocalRatingsHistoryMinifiedDatabase,
     LocalRatingsHistoryMinifiedDirectoryElement,LocalRatingsHistoryMinifiedDatabaseElement
-}
+};

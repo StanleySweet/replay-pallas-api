@@ -4,7 +4,7 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
-import * as translationsRaw from "./options.json"
+import * as translationsRaw from "./options.json";
 
 type LocalRatingsOptions = typeof translationsRaw;
 type LocalRatingsOptionsKey = keyof LocalRatingsOptions;
@@ -12,4 +12,4 @@ type LocalRatingsOptionsKey = keyof LocalRatingsOptions;
 export type {
     LocalRatingsOptionsKey,
     LocalRatingsOptions,
-}
+};

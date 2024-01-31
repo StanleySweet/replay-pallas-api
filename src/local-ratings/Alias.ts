@@ -93,4 +93,4 @@ class LocalRatingsAlias {
 
 export {
     LocalRatingsAlias
-}
+};

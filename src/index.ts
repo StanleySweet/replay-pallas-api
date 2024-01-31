@@ -4,15 +4,15 @@
  */
 
 import { fastify, FastifyReply, FastifyRequest } from "fastify";
-import cors from '@fastify/cors'
-import multipart from '@fastify/multipart'
-import sqlite3 from 'sqlite3'
-import { open, Database } from 'sqlite'
+import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
+import sqlite3 from 'sqlite3';
+import { open, Database } from 'sqlite';
 import { UserController } from "./controllers/UserController";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import { ReplayController } from "./controllers/ReplayController";
-import * as jose from 'jose'
+import * as jose from 'jose';
 import { PallasTokenPayload } from "./types/PallasToken";
 import { JOSE_SECRET } from "./project_globals";
 import { LobbyUserController } from "./controllers/LobbyUserController";
@@ -113,7 +113,7 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     
     db.close();
 
-    var bdb = BetterDatabase("dist/cache/replay-pallas.sqlite3", { readonly: false });
+    const bdb = BetterDatabase("dist/cache/replay-pallas.sqlite3", { readonly: false });
     EngineInstance.SetDataBase(bdb);
     bdb.pragma('journal_mode = WAL');
 
@@ -124,6 +124,7 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     const { ratingsDb, replayDb, aliasDb } = init_LocalRatings();
 
     server.glicko2Manager = new Glicko2Manager(bdb);
+    server.glicko2Manager.rebuild();
     if (server.glicko2Manager.hasCache()) {
         server.glicko2Manager.load();
     }

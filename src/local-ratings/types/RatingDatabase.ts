@@ -25,4 +25,4 @@ export type {
     LocalRatingsRatingDatabaseElement,
     LocalRatingsMinifiedRatingDatabase,
     LocalRatingsMinfiedRatingDatabaseElement
-}
+};

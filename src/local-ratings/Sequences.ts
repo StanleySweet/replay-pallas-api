@@ -1,4 +1,4 @@
-import {  Sequences } from "../types/Sequence"
+import {  Sequences } from "../types/Sequence";
 
 /**
  * This class stores the information on the replay sequences.
@@ -8,24 +8,24 @@ class LocalRatingsSequences
 {
     [key: string] : any
 
-    resourcesGathered: any
-    resourcesUsed: any
-    resourcesBought: any
-    resourcesSold: any
-    tributesSent: any
-    tradeIncome: any
-    enemyUnitsKilledValue: any
-    enemyUnitsKilled: any
-    unitsCapturedValue: any
-    unitsCaptured: any
-    enemyBuildingsDestroyedValue: any
-    enemyBuildingsDestroyed: any
-    buildingsCapturedValue: any
-    buildingsCaptured: any
-    percentMapExplored: any
-    percentMapControlled: any
-    peakPercentMapControlled: any
-    successfulBribes: any
+    resourcesGathered: any;
+    resourcesUsed: any;
+    resourcesBought: any;
+    resourcesSold: any;
+    tributesSent: any;
+    tradeIncome: any;
+    enemyUnitsKilledValue: any;
+    enemyUnitsKilled: any;
+    unitsCapturedValue: any;
+    unitsCaptured: any;
+    enemyBuildingsDestroyedValue: any;
+    enemyBuildingsDestroyed: any;
+    buildingsCapturedValue: any;
+    buildingsCaptured: any;
+    percentMapExplored: any;
+    percentMapControlled: any;
+    peakPercentMapControlled: any;
+    successfulBribes: any;
 
     constructor(sequences : Sequences)
     {
@@ -65,9 +65,9 @@ class LocalRatingsSequences
     {
         // Validate top-level keys
         if (Object.values(this).some(x => !Array.isArray(x)))
-            return false
+            return false;
         if (Object.values(this).some(x => x.length == 0))
-            return false
+            return false;
         return true;
     }
 
@@ -204,4 +204,4 @@ class LocalRatingsSequences
 
 export {
     LocalRatingsSequences
-}
+};

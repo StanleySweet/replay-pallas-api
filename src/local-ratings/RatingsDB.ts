@@ -10,8 +10,8 @@ import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
  * This class is responsible for updating the ratings and history databases stored in the cache folder.
  */
 class LocalRatingsRatingsDB {
-    ratingsDatabase: LocalRatingsRatingDatabase
-    historyDatabase: LocalRatingsHistoryDatabase
+    ratingsDatabase: LocalRatingsRatingDatabase;
+    historyDatabase: LocalRatingsHistoryDatabase;
     cache: LocalRatingsCache;
     minifier: LocalRatingsMinifier;
     calculator: LocalRatingsCalculator;
@@ -44,12 +44,12 @@ class LocalRatingsRatingsDB {
         // Update globals
         this.ratingsDatabase = this.calculator.ratingsDatabase;
         this.historyDatabase = this.calculator.historyDatabase;
-        pino().info(`Rebuilding the rating database. ${Object.keys(this.ratingsDatabase).length} ratings and ${Object.keys(this.historyDatabase).length} history points were added.`)
+        pino().info(`Rebuilding the rating database. ${Object.keys(this.ratingsDatabase).length} ratings and ${Object.keys(this.historyDatabase).length} history points were added.`);
         this.save();
     }
 
     merge(newReplays: LocalRatingsReplayDatabase) {
-        pino().info(`Merging ${Object.keys(newReplays).length} replay(s) in the rating database.`)
+        pino().info(`Merging ${Object.keys(newReplays).length} replay(s) in the rating database.`);
         this.calculator.merge(newReplays);
 
         // Update globals
@@ -60,4 +60,4 @@ class LocalRatingsRatingsDB {
 
 export {
     LocalRatingsRatingsDB
-}
+};

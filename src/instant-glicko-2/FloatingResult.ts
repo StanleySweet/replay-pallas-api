@@ -10,12 +10,12 @@ class FloatingResult implements IResult {
     player: Rating;
     opponent: Rating;
     score: number;
-    players: Rating[]
+    players: Rating[];
     constructor(player: Rating, opponent: Rating, score: number) {
         this.player = player;
         this.opponent = opponent;
         this.score = score;
-        this.players = [player, opponent]
+        this.players = [player, opponent];
     }
 
     getScore(player: Rating): number {
@@ -24,11 +24,11 @@ class FloatingResult implements IResult {
     getOpponent(player: Rating): Rating {
         return player === this.player ? this.opponent : this.player;
     }
-    participated(player: Rating): Boolean {
+    participated(player: Rating): boolean {
         return player === this.player || player === this.opponent;
     }
 }
 
 export {
     FloatingResult
-}
+};

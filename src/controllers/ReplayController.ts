@@ -34,22 +34,22 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
         if (Buffer.isBuffer(replay.filedata))
             replay.filedata = snappy.uncompressSync(replay.filedata, { asBuffer: false }) as string;
 
-        var commandsData = extract_commands_data(replay.filedata)
+        const commandsData = extract_commands_data(replay.filedata);
         replay.metadata = Object.assign(replay.metadata, commandsData);
     }
 
     const mpNames = replays.map(replay => {
-        let names: string[] = [];
+        const names: string[] = [];
         if (replay.metadata.settings && replay.metadata.settings.PlayerData) {
             for (const nameWithoutRating of replay.metadata.settings.PlayerData.map(a => a.NameWithoutRating))
                 if (nameWithoutRating)
-                    names.push(nameWithoutRating)
+                    names.push(nameWithoutRating);
         }
 
         return {
             "match_id": replay.metadata.matchID,
             "player_names": names
-        }
+        };
     });
 
     const names = new Set<{ name: string, matchId: string }>();
@@ -73,7 +73,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
             existingUser = fastify.database.prepare("Select id From lobby_players where nick = @nick LIMIT 1;").get({ "nick": name.name }) as { id: number };
         }
 
-        userMap.set(name.name, existingUser.id)
+        userMap.set(name.name, existingUser.id);
     }
 
     for (const replay of replays) {
@@ -102,7 +102,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
     Set 
     modification_date = @modification_date, 
     metadata = @metadata 
-    Where match_id = @match_id;`)
+    Where match_id = @match_id;`);
     for (const replay of replays) {
         if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a)) {
             const currentDate = new Date();
@@ -140,12 +140,12 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
     fastify.ratingsDb.rebuild();
     fastify.glicko2Manager.rebuild();
 
-    reply.code(200)
+    reply.code(200);
 }
 
-function extract_commands_data(text: string): any {
+function extract_commands_data(text: string): ReplayMetaData | null |  undefined {
     try {
-        const lines = text.replaceAll("\r\n", "\n").split("\n")
+        const lines = text.replaceAll("\r\n", "\n").split("\n");
         if (!lines || !lines.length || !lines[0])
             return null;
         const data: ReplayMetaData = JSON.parse(lines[0].replace("start ", ""));
@@ -173,7 +173,7 @@ function extract_commands_data(text: string): any {
                     data.settings.PlayerData[player].Commands = [];
                 const cmdData = JSON.parse(line.substring(6));
                 cmdData.turn = currentTurn;
-                data.settings.PlayerData[player].Commands?.push(cmdData)
+                data.settings.PlayerData[player].Commands?.push(cmdData);
             }
         }
 
@@ -214,7 +214,7 @@ const rebuild_glicko_rank_history = (request: FastifyRequest, reply: FastifyRepl
 
     fastify.glicko2Manager.rebuild();
     reply.code(200);
-}
+};
 
 function padNumber(number: number) {
     return number.toString().padStart(2, '0');
@@ -227,7 +227,7 @@ const get_ranks = (replays: Replays): LobbyRankingHistoryEntries => {
             element.metadata = JSON.parse(snappy.uncompressSync(element.metadata as Buffer, { asBuffer: false }) as string);
         const playerData = element.metadata.settings?.PlayerData;
         if (!playerData)
-            continue
+            continue;
 
         for (const player of playerData) {
             if (!player || !player.Name)
@@ -248,11 +248,11 @@ const get_ranks = (replays: Replays): LobbyRankingHistoryEntries => {
                 elo: elo,
                 lobby_player_id: player.LobbyUserId,
                 date: formattedDate
-            } as LobbyRankingHistoryEntry)
+            } as LobbyRankingHistoryEntry);
         }
     }
     return ranks;
-}
+};
 
 const rebuild_lobby_rank_history = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
@@ -273,14 +273,14 @@ const rebuild_lobby_rank_history = (request: FastifyRequest, reply: FastifyReply
     }
 
     reply.send(ranks);
-}
+};
 
 function UploadReplayToDatabase(replay: Replay, server: FastifyInstance): boolean {
     try {
         server.database.prepare(`INSERT INTO replays (match_id, metadata, filedata, creation_date) VALUES($matchId, $metadata, $filedata, $creationDate)`).run(ToDbFormat(replay));
         return true;
     } catch (ex) {
-        console.error(ex)
+        console.error(ex);
         return false;
     }
 }
@@ -295,12 +295,12 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             "Name": fileName,
             "Data": fileName.includes(".json") ? JSON.parse(text) : extract_commands_data(text),
             "Contents": text
-        }
+        };
     }
 
     function ExtractFileNameFromPath(path: string): string {
         const splittedName = path.replace("\\", "/").split("/");
-        return splittedName[splittedName.length - 1]
+        return splittedName[splittedName.length - 1];
     }
 
     /**
@@ -310,13 +310,13 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
      * @returns
      */
     function ExtractFolderData(files: IZipEntry[], zip: AdmZip): Replay {
-        const b = files.map(c => ExtractFileData(ExtractFileNameFromPath(c.entryName), zip.readAsText(c)))
+        const b = files.map(c => ExtractFileData(ExtractFileNameFromPath(c.entryName), zip.readAsText(c)));
         const metadata: ReplayMetaData = b.reduce((metadata, a) => Object.assign(metadata, a.Data), {});
         const result = { metadata: {} as ReplayMetaData, filedata: {} } as Replay;
         result.metadata = Object.assign(result.metadata, metadata);
 
         b.forEach(element => {
-            result.filedata[element.Name] = element.Contents
+            result.filedata[element.Name] = element.Contents;
         });
         return result;
     }
@@ -329,10 +329,10 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             ...schemaCommon
         }
     }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-        const data = await request.file({ "limits": { fileSize: 1024 * 1024 * 5 } })
-        const response = { Success: false, AddedReplays: [] } as UploadReplayZipResponse
+        const data = await request.file({ "limits": { fileSize: 1024 * 1024 * 5 } });
+        const response = { Success: false, AddedReplays: [] } as UploadReplayZipResponse;
         if (!data) {
-            reply.send(response)
+            reply.send(response);
             return;
         }
 
@@ -348,13 +348,13 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         const files = zipEntries.filter(a => !a.isDirectory);
         let replays: Replays = [];
         if (folderNames.length)
-            replays = folderNames.map(folderName => ExtractFolderData(files.filter(b => b.entryName.includes(folderName)), zip))
+            replays = folderNames.map(folderName => ExtractFolderData(files.filter(b => b.entryName.includes(folderName)), zip));
         else
-            replays = [ExtractFolderData(files, zip,)]
+            replays = [ExtractFolderData(files, zip,)];
 
         const matchIds: Replays = server.database.prepare('SELECT match_id FROM replays;').all() as Replays;
         const newReplays = replays.filter((b: Replay) => !matchIds.some((a: Replay) => a.match_id === b.metadata.matchID));
-        const datas = newReplays.map(a => { return { "matchId": a.metadata.matchID, "playerNames": a.metadata.settings?.PlayerData?.filter(a => a && !a.AI).map(a => a.NameWithoutRating || "") } })
+        const datas = newReplays.map(a => { return { "matchId": a.metadata.matchID, "playerNames": a.metadata.settings?.PlayerData?.filter(a => a && !a.AI).map(a => a.NameWithoutRating || "") }; });
         const names = new Set<{ name: string, matchId: string }>();
         for (const nameArray of datas) {
             if (!nameArray.playerNames)
@@ -380,7 +380,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
                 existingUser = server.database.prepare("Select id From lobby_players where nick = @nick LIMIT 1;").get({ "nick": name.name }) as { id: number };
             }
 
-            userMap.set(name.name, existingUser.id)
+            userMap.set(name.name, existingUser.id);
         }
 
         for (const replay of newReplays) {
@@ -408,7 +408,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         for (const replay of newReplays) {
             if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a) && UploadReplayToDatabase(replay, server)) {
                 // Add a link so users can delete the replays they uploaded
-                server.database.prepare("Insert Into replay_user_link (user_id, match_id) Values (@user_id, @matchId);").run({ "user_id": request.claims?.id, "matchId": replay.metadata.matchID })
+                server.database.prepare("Insert Into replay_user_link (user_id, match_id) Values (@user_id, @matchId);").run({ "user_id": request.claims?.id, "matchId": replay.metadata.matchID });
                 response.AddedReplays.push(replay.metadata.matchID);
             }
         }
@@ -441,7 +441,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             });
         }
 
-        reply.send(response)
+        reply.send(response);
     });
 
     type GetMatchZipByIdRequest = FastifyRequest<{ Params: { matchId: string } }>;
@@ -463,7 +463,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const matchId = request.params.matchId
+        const matchId = request.params.matchId;
         if (!matchId) {
             reply.send(null);
             return;
@@ -479,7 +479,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         const zip = new AdmZip();
         for (const file of Object.keys(fileJson))
-            zip.addFile(file, Buffer.from(typeof (fileJson[file]) === "string" ? fileJson[file] : JSON.stringify(fileJson[file]), 'utf8'), '', 0o644)
+            zip.addFile(file, Buffer.from(typeof (fileJson[file]) === "string" ? fileJson[file] : JSON.stringify(fileJson[file]), 'utf8'), '', 0o644);
         reply.header(
             'Content-Disposition',
             `attachment; filename=${files[0].match_id}.zip`);
@@ -513,7 +513,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays WHERE match_id = @matchId LIMIT 1').all({ "matchId": matchId }) as Replays;
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
 
         reply.send(replays.length ? replays[0] : null);
     });
@@ -536,7 +536,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         }
         const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays ORDER BY creation_date desc LIMIT 10;').all() as Replays;
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
         reply.send(replays);
     });
 
@@ -585,7 +585,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays ORDER BY creation_date desc').all() as Replays;
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
         reply.send(replays);
     });
 
@@ -678,13 +678,13 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         }
 
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string)
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
 
-        reply.send(replays)
+        reply.send(replays);
     });
     done();
 };
 
 export {
     ReplayController
-}
+};

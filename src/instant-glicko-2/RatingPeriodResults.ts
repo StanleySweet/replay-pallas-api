@@ -6,17 +6,17 @@
 import { FloatingResult } from "./FloatingResult";
 import { GameResult } from "./GameResult";
 import { IResult } from "./IResult";
-import { Rating } from "./Rating"
+import { Rating } from "./Rating";
 
 abstract class RatingPeriodResults<T extends IResult> {
-    results: T[]
+    results: T[];
 
     constructor(results: T[]) {
         this.results = results;
     }
 
     getResults(player: Rating): T[] {
-        return this.results.filter(a => a.players.some(b => b === player))
+        return this.results.filter(a => a.players.some(b => b === player));
     }
 
     getParticipants(): Set<Rating> {
@@ -32,4 +32,4 @@ export {
     RatingPeriodResults,
     GameRatingPeriodResults,
     FloatingRatingPeriodResults
-}
+};

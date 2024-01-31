@@ -1,4 +1,4 @@
-import { LocalRatingsReplay } from "../Replay"
+import { LocalRatingsReplay } from "../Replay";
 
 interface LocalRatingsMinifiedReplayDatabaseElement {
     [index: number]: any
@@ -16,4 +16,4 @@ export type {
     LocalRatingsMinifiedReplayDatabaseElement,
     LocalRatingsReplayDatabase,
     LocalRatingsMinifiedReplayDatabase
-}
+};

@@ -21,7 +21,7 @@ const get_lobby_users = (request: FastifyRequest, reply: FastifyReply, fastify: 
             return;
         }
 
-        reply.send(users)
+        reply.send(users);
     }
     catch (err) {
         console.error(err);
@@ -58,4 +58,4 @@ const LobbyUserController: FastifyPluginCallback = (fastify, _, done) => {
 
 export {
     LobbyUserController
-}
+};

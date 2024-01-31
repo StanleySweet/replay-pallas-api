@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
-import { Database } from 'better-sqlite3'
+import { Database } from 'better-sqlite3';
 import { ReplayMetaData } from "./ReplayMetaData";
-import Path from 'path'
+import Path from 'path';
 import { uncompressSync } from "snappy";
 import { LocalRatingsMetadataContainer } from "../local-ratings/types/MetadataContainer";
 
@@ -28,7 +28,7 @@ class Engine {
 
         const replays = this.database.prepare('Select metadata as attribs, match_id as directory  From replays;').all() as LocalRatingsMetadataContainer[];
         for (const element of replays) {
-            element.attribs = JSON.parse(uncompressSync(element.attribs as string, { asBuffer: false }) as string)
+            element.attribs = JSON.parse(uncompressSync(element.attribs as string, { asBuffer: false }) as string);
         }
 
         for (let i = 0; i < replays.length; ++i) {
@@ -60,7 +60,7 @@ class Engine {
                 "mod": "public",
                 "version": "0.0.26"
             }]
-        }
+        };
     }
     ProfileStart(_: string) {
         // Nothing to do there.
@@ -133,8 +133,8 @@ const EngineInstance = new Engine();
 
 export {
     EngineInstance
-}
+};
 
 export type {
     Engine
-}
+};

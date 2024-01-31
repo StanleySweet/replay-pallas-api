@@ -1,9 +1,9 @@
-import { z } from "zod"
+import { z } from "zod";
 
 const CivilizationSchema = z.object({
     key: z.string(),
     emblem_key: z.string()
-})
+});
 
 const CivilizationsSchema = z.array(CivilizationSchema);
 
@@ -16,4 +16,4 @@ export type {
 
 export {
     CivilizationSchema, CivilizationsSchema
-}
+};

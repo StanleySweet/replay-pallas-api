@@ -22,9 +22,9 @@ class LocalRatingsReplay {
     startingResources : any;
     teamsSize : { [team: string]: number };
     worldPopulation: boolean;
-    players: string[]
+    players: string[];
     hasAiPlayers: boolean;
-    scores: LocalRatingsSequences[]
+    scores: LocalRatingsSequences[];
     isValid: boolean;
 
 
@@ -69,7 +69,7 @@ class LocalRatingsReplay {
 
         if (invalidValues.length) {
             console.log("Replay " + this.directory + " was skipped because the following values are undefined", invalidValues);
-            console.log("=======================================================")
+            console.log("=======================================================");
         }
 
         return invalidValues.length === 0;
@@ -78,5 +78,5 @@ class LocalRatingsReplay {
 
 export {
     LocalRatingsReplay
-}
+};
 

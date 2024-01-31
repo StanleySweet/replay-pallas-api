@@ -12,11 +12,11 @@ const POINTS_FOR_DRAW = 0.5;
 
 class GameResult implements IResult {
     winner: Rating;
-    isDraw: Boolean;
+    isDraw: boolean;
     loser: Rating;
     players: Rating[];
 
-    constructor(winner: Rating, loser: Rating, isDraw: Boolean) {
+    constructor(winner: Rating, loser: Rating, isDraw: boolean) {
         this.winner = winner;
         this.loser = loser;
         this.players = [winner, loser];
@@ -31,23 +31,23 @@ class GameResult implements IResult {
         else if (this.loser === player)
             return POINTS_FOR_LOSS;
         else
-            throw new Error("Player did not participate in match")
+            throw new Error("Player did not participate in match");
     }
 
     getOpponent(player: Rating): Rating {
         if (this.winner === player)
-            return this.loser
+            return this.loser;
         else if (this.loser === player)
-            return this.winner
+            return this.winner;
         else
-            throw new Error("Player did not participate in match")
+            throw new Error("Player did not participate in match");
     }
 
-    participated(player: Rating): Boolean {
+    participated(player: Rating): boolean {
         return player === this.winner || player === this.loser;
     }
 }
 
 export {
     GameResult
-}
+};

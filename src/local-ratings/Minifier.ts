@@ -92,7 +92,7 @@ class LocalRatingsMinifier {
             "iber",
             "kush",
             "pers",
-        ]
+        ];
     }
 
     minifyNumber(number: number) {
@@ -198,4 +198,4 @@ class LocalRatingsMinifier {
 
 export {
     LocalRatingsMinifier
-}
+};

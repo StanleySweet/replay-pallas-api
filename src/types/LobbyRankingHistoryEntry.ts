@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
 const LobbyRankingHistoryEntrySchema = z.object({
     id: z.number().optional(),
@@ -15,8 +15,8 @@ type LobbyRankingHistoryEntries = z.infer<typeof LobbyRankingHistoryEntriesSchem
 export {
     LobbyRankingHistoryEntrySchema,
     LobbyRankingHistoryEntriesSchema
-}
+};
 export type {
     LobbyRankingHistoryEntry,
     LobbyRankingHistoryEntries
-}
+};

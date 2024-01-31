@@ -4,7 +4,7 @@ import { EngineInstance as Engine } from "../types/Engine";
 import { LocalRatingsReplay } from "./Replay";
 import { LocalRatingsMetadataContainer } from "./types/MetadataContainer";
 import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
-import pino from 'pino'
+import pino from 'pino';
 
 /**
  * This class is responsible for updating or rebuilding the replay database stored in the cache folder.
@@ -33,7 +33,7 @@ class LocalRatingsReplayDB {
             }
         }
 
-        pino().info(`Adding ${count} new replay(s) to the replay database.`)
+        pino().info(`Adding ${count} new replay(s) to the replay database.`);
     }
 
     isEmpty() {
@@ -64,7 +64,7 @@ class LocalRatingsReplayDB {
         if (unScanned.length == 0)
             return;
 
-        pino().info(`Updating the replay database ${unScanned.length} replay(s) will be processed.`)
+        pino().info(`Updating the replay database ${unScanned.length} replay(s) will be processed.`);
 
         // Add new replays
         this.addReplays(unScanned, this.newReplays);
@@ -79,4 +79,4 @@ class LocalRatingsReplayDB {
 
 export {
     LocalRatingsReplayDB
-}
+};

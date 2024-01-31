@@ -53,7 +53,7 @@ export class LocalRatingsMetadataContainer {
                 return;
 
 
-            (team in teamData) ? teamData[team] += 1 : teamData[team] = 1
+            (team in teamData) ? teamData[team] += 1 : teamData[team] = 1;
         });
         // Fix the "None" team
         if ("-1" in teamData)

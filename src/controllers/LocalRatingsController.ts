@@ -7,7 +7,7 @@ import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } 
 import EUserRole from "../enumerations/EUserRole";
 import zodToJsonSchema from "zod-to-json-schema";
 import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, sortString_LocalRatings, update_LocalRatings, LocalRatingsState } from "../local-ratings/utilities/functions_utility";
-import { z } from 'zod'
+import { z } from 'zod';
 import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
 import { LatestUser, LatestUserSchema } from "../types/User";
 import { LocalRatingsEvolutionChartOptions } from "../local-ratings/EvolutionChartOptions";
@@ -80,7 +80,7 @@ const PallasGlickoRatingSchema = z.object({
     "volatility": z.number(),
     "lobby_player_id": z.number(),
     "preview_deviation":z.number(),
-})
+});
 
 
 const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
@@ -90,13 +90,13 @@ const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastif
     }
 
     try {
-        reply.send(fastify.glicko2Manager.ratings)
+        reply.send(fastify.glicko2Manager.ratings);
     }
     catch (err) {
         console.error(err);
         reply.code(400);
     }
-}
+};
 
 
 
@@ -121,7 +121,7 @@ const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify
         console.error(err);
         reply.code(400);
     }
-}
+};
 
 
 function getSingleGamesRatings(playerData: LocalRatingsHistoryDirectoryElement): number[] {
@@ -148,7 +148,7 @@ const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyRepl
 
     const getCivSingleGamesRatings = (civ : string) => {
         return Object.keys(playerData).filter(x => playerData[x].civ == civ).map(x => playerData[x].rating);
-    }
+    };
 
     const get_civ_rating = (civ:string) : number =>
     {
@@ -156,25 +156,25 @@ const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyRepl
         if (singleGamesRatings.length == 0)
             return 0;
         return getMean_LocalRatings(singleGamesRatings);
-    }
+    };
 
     const get_current_rating = () =>
     {
         const singleGamesRatings = Object.keys(playerData).map(x => playerData[x].rating);
         return getMean_LocalRatings(singleGamesRatings);
-    }
+    };
 
     const get_civ_matches = (civ: string) =>
     {
         return getCivSingleGamesRatings(civ).length;
-    }
+    };
 
     const get_civ_advantage = (civRating : number | undefined, currentRating : number) =>
     {
         if (civRating === undefined)
             return 0;
         return civRating - currentRating;
-    }
+    };
 
     const civs : Civilizations = fastify.database.prepare("Select key from civilizations;").all() as Civilizations;
     const currentRating = get_current_rating();
@@ -187,10 +187,10 @@ const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyRepl
         "civRatings": civRatings,
         "civMatches": civMatches,
         "advantages": advantages,
-    }
+    };
 
     reply.send(data);
-}
+};
 
 const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
@@ -214,7 +214,7 @@ const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply:
         series : [],
         colors: [],
         legends: []
-    }
+    };
     // Push to GUI
     if (configOptions.showzero) {
         const zeroLineDataSet = (dataSize == 1) ?
@@ -250,7 +250,7 @@ const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply:
     }
 
     reply.send(data);
-}
+};
 
 
 const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
@@ -282,11 +282,11 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
             "rating": formatRating_LocalRatings(x[1] as number), // rating
             "matches": x[2] as number, // matches
             "user": user
-        }
+        };
     });
 
     reply.send(rows);
-}
+};
 
 
 const get_player_profile = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
@@ -331,8 +331,8 @@ const get_player_profile = async (request: GetPlayerProfileRequest, reply: Fasti
         "performanceStandardDeviationText": formatRating_LocalRatings(performanceStandardDeviation)
     };
 
-    reply.send(captions)
-}
+    reply.send(captions);
+};
 
 const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
 
@@ -453,4 +453,4 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
 
 export {
     LocalRatingsController
-}
+};

@@ -46,4 +46,4 @@ const HealthController: FastifyPluginCallback = (fastify: FastifyInstance, _, do
 
 export {
     HealthController
-}
+};

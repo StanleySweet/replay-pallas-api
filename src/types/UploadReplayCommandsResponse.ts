@@ -3,7 +3,7 @@
  * SPDX-FileCopyrightText: © 2022 Stanislas Daniel Claude Dolcini
  */
 
-import { z } from "zod"
+import { z } from "zod";
 
 const UploadReplayCommandsResponseSchema = z.object({
     Success: z.boolean(),
@@ -14,8 +14,8 @@ type UploadReplayCommandsResponse = z.infer<typeof UploadReplayCommandsResponseS
 
 export type {
     UploadReplayCommandsResponse
-}
+};
 
 export {
     UploadReplayCommandsResponseSchema
-}
+};

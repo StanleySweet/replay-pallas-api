@@ -4,14 +4,17 @@
  */
 
 class Rating {
-    static minRating: number = 400
-    static maxRating: number = 4000
-    static minDeviation: number = 45
-    static standardRankableDeviation: number = 75
-    static provisionalDeviation: number = 110
-    static cluelessDeviation: number = 230
-    static maxDeviation: number = 500
-    static maxVolatility: number = 0.1
+    static minRating = 400;
+    static maxRating = 4000;
+    static minDeviation = 45;
+    static standardRankableDeviation = 75;
+    static provisionalDeviation = 110;
+    static cluelessDeviation = 230;
+    static maxDeviation = 500;
+    static maxVolatility = 0.1;
+    static defaultVolatility = 0.09;
+    static defaultDeviation = 350;
+    static defaultRating = 1500.0;
 
     rating: number;
     volatility: number;
@@ -27,7 +30,7 @@ class Rating {
         this.rating = rating;
         this.volatility = volatility;
         this.numberOfResults = numberOfResults;
-        this.ratingDeviation = ratingDeviation
+        this.ratingDeviation = ratingDeviation;
         this.workingRatingDeviation = 0;
         this.workingRating = 0;
         this.workingVolatility = 0;
@@ -35,12 +38,10 @@ class Rating {
     }
 
     incrementNumberOfResults(increment: number): void {
-        this.numberOfResults = this.numberOfResults + increment
+        this.numberOfResults = this.numberOfResults + increment;
     }
-
-   
 }
 
 export {
     Rating
-}
+};

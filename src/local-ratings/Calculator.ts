@@ -15,8 +15,8 @@ import { LocalRatingsMinifier } from "./Minifier";
  */
 class LocalRatingsCalculator {
 
-    ratingsDatabase: LocalRatingsRatingDatabase
-    historyDatabase: LocalRatingsHistoryDatabase
+    ratingsDatabase: LocalRatingsRatingDatabase;
+    historyDatabase: LocalRatingsHistoryDatabase;
 
     constructor() {
         this.ratingsDatabase = {};
@@ -68,14 +68,14 @@ class LocalRatingsCalculator {
                 tmpHistoryDatabase[playerName][replayObj.directory] = {
                     "rating": ratings[player],
                     "civ": replayObj.civs[player]
-                }
+                };
             }
         }
 
         // Now that temporary history database is populated, we can update the databases
         for (const player in tmpHistoryDatabase) {
             const tmpMatches = Object.values(tmpHistoryDatabase[player]).length;
-            const tmpRating = getMean_LocalRatings(Object.values(tmpHistoryDatabase[player]).map(x => x.rating))
+            const tmpRating = getMean_LocalRatings(Object.values(tmpHistoryDatabase[player]).map(x => x.rating));
 
             // Known player
             if (player in this.ratingsDatabase) {
@@ -117,5 +117,5 @@ class LocalRatingsCalculator {
 
 export {
     LocalRatingsCalculator
-}
+};
 

@@ -1,4 +1,4 @@
-import { z } from "zod"
+import { z } from "zod";
 import { CommandSchema } from "./Command";
 
 const PlayerDataSchema = z.object({
@@ -24,4 +24,4 @@ export type {
 
 export {
     PlayerDataSchema
-}
+};

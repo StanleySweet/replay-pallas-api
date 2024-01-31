@@ -4,19 +4,14 @@ import { LocalRatingsOptions } from "./types/Options";
 /**
  * This class is responsible for dealing with settings.
  */
-class LocalRatingsSettings
-{
-
-     getSaved()
-    {
-        const optionsJSON : LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json");
-        let settings : any = {};
-        for(const category of optionsJSON)
-        {
-            for(const option of category.options)
-            {
+class LocalRatingsSettings {
+    getSaved() {
+        const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json");
+        let settings: { [key: string]: string | null } = {};
+        for (const category of optionsJSON) {
+            for (const option of category.options) {
                 const configOption = option.config as keyof typeof settings;
-                settings[configOption] = Engine.ConfigDB_GetValue("user", option.config)
+                settings[configOption] = Engine.ConfigDB_GetValue("user", option.config);
             }
         }
 
@@ -25,19 +20,15 @@ class LocalRatingsSettings
         return settings;
     }
 
-    async getDynamicSaved() : Promise<{}>
-    {
-        return {"localratings.modfilter" : await Engine.ConfigDB_GetValue("user", "localratings.modfilter")};
+    async getDynamicSaved(): Promise<{ "localratings.modfilter": string | null }> {
+        return { "localratings.modfilter": Engine.ConfigDB_GetValue("user", "localratings.modfilter") };
     }
 
-    getDefault()
-    {
-        const optionsJSON : LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json");
-        let settings : any = {};
-        for(const category of optionsJSON)
-        {
-            for(const option of category.options)
-            {
+    getDefault() {
+        const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json");
+        let settings: { [key: string]: string | null } = {};
+        for (const category of optionsJSON) {
+            for (const option of category.options) {
                 const configOption = option.config as keyof typeof settings;
                 settings[configOption] = option.val.toString();
             }
@@ -46,32 +37,27 @@ class LocalRatingsSettings
         return settings;
     }
 
-    getDynamicDefault()
-    {
-        return {"localratings.modfilter" : ""};
+    getDynamicDefault() {
+        return { "localratings.modfilter": "" };
     }
 
-    createDefaultSettingsIfNotExist() : Promise<{}>
-    {
+    createDefaultSettingsIfNotExist(): { [key: string]: string | null } {
         const settings = this.getDefault();
-        Object.keys(settings).filter(key => !Engine.ConfigDB_GetValue("user", key)).forEach(key => Engine.ConfigDB_CreateValue("user", key, settings[key]));
+        Object.keys(settings).filter(key => !Engine.ConfigDB_GetValue("user", key)).forEach(key => Engine.ConfigDB_CreateValue("user", key, settings[key] ?? ""));
         Engine.ConfigDB_WriteFile("user", "config/user.cfg");
         return settings;
     }
 
-    restoreLocalDefault() : Promise<{}>
-    {
+    restoreLocalDefault(): { [key: string]: string | null } {
         const settings = this.getDefault();
-        for(const key of Object.keys(settings))
-        {
+        for (const key of Object.keys(settings)) {
             Engine.ConfigDB_RemoveValue("user", key);
-            if (! Engine.ConfigDB_GetValue("user", key))
-            {
+            if (!Engine.ConfigDB_GetValue("user", key)) {
                 const settingsKey = key as keyof typeof settings;
-                Engine.ConfigDB_CreateValue("user", key, settings[settingsKey]);
+                Engine.ConfigDB_CreateValue("user", key, settings[settingsKey] ?? "");
             }
         }
-         Engine.ConfigDB_WriteFile("user", "config/user.cfg");
+        Engine.ConfigDB_WriteFile("user", "config/user.cfg");
         return settings;
     }
 
@@ -79,4 +65,4 @@ class LocalRatingsSettings
 
 export {
     LocalRatingsSettings
-}
+};

@@ -3,15 +3,15 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
-import { Rating } from "./Rating"
+import { Rating } from "./Rating";
 
 interface IResult {
     getScore: (player: Rating) => number
     getOpponent: (player: Rating) => Rating
-    participated: (player: Rating) => Boolean
+    participated: (player: Rating) => boolean
     players: Rating[]
 }
 
 export {
     IResult
-}
+};

@@ -1,4 +1,4 @@
-import { EngineInstance as Engine } from '../types/Engine'
+import { EngineInstance as Engine } from '../types/Engine';
 import { LocalRatingsOptions } from './types/Options';
 
 /**
@@ -15,10 +15,10 @@ class LocalRatingsWeights {
         const configKeyTypeLength = configKeyType.length;
         for (const fullConfigKey of configKeys) {
             const configKey = fullConfigKey.substring(configKeyTypeLength) as keyof LocalRatingsWeights;
-            (<any>this)[configKey] = + (Engine.ConfigDB_GetValue("user", fullConfigKey) ?? 0);
+            this[configKey] = + (Engine.ConfigDB_GetValue("user", fullConfigKey) ?? 0);
         }
     }
 
 }
 
-export { LocalRatingsWeights }
+export { LocalRatingsWeights };

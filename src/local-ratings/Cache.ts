@@ -1,4 +1,4 @@
-import { EngineInstance as Engine } from '../types/Engine'
+import { EngineInstance as Engine } from '../types/Engine';
 
 /**
  * This class is responsible for interactions with cache files, like loading or saving.
@@ -76,4 +76,4 @@ class LocalRatingsCache {
 
 export {
     LocalRatingsCache
-}
+};

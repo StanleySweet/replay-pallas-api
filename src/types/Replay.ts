@@ -4,8 +4,8 @@
  */
 
 import { ReplayMetaData, ReplayMetaDataSchema } from "./ReplayMetaData";
-import { z } from "zod"
-const snappy = require('snappy')
+import { z } from "zod";
+import snappy from 'snappy';
 
 const ReplaySchema = z.object({
     metadata: ReplayMetaDataSchema,
@@ -31,8 +31,8 @@ const ToDbFormat = (replay: Replay) => {
         "metadata": snappy.compressSync(JSON.stringify(replay.metadata)),
         "filedata": snappy.compressSync(JSON.stringify(replay.filedata)),
         "creationDate": formattedDate
-    }
-}
+    };
+};
 
 export type {
     Replay, Replays
@@ -40,7 +40,7 @@ export type {
 
 export {
     ReplaySchema, ReplaysSchema, ToDbFormat
-}
+};
 
 
 
