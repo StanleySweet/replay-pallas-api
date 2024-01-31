@@ -6,7 +6,7 @@
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import EUserRole from "../enumerations/EUserRole";
 import zodToJsonSchema from "zod-to-json-schema";
-import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, sortString_LocalRatings, update_LocalRatings, LocalRatingsState } from "../local-ratings/utilities/functions_utility";
+import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import { z } from 'zod';
 import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
 import { LatestUser, LatestUserSchema } from "../types/User";
@@ -101,7 +101,7 @@ const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastif
 
 
 const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
-    if ((request.claims?.role ?? 0) <= EUserRole.ADMINISTRATOR) {
+    if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(401);
         return;
     }

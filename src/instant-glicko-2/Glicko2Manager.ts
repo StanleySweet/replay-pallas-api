@@ -9,10 +9,10 @@ import snappy from 'snappy';
 import { RatingCalculator } from './RatingCalculator';
 import { RatingCalculatorSettings } from './RatingCalculatorSettings';
 import { Rating } from './Rating';
-import { FloatingRatingPeriodResults, GameRatingPeriodResults } from './RatingPeriodResults';
+import { GameRatingPeriodResults } from './RatingPeriodResults';
 import pino from 'pino';
 import { GameResult } from './GameResult';
-import { FloatingResult } from './FloatingResult';
+
 declare module 'fastify' {
     interface FastifyInstance {
         glicko2Manager: Glicko2Manager
@@ -61,8 +61,7 @@ class Glicko2Manager {
         const playersIds: Map<string, number> = new Map<string, number>();
         const playersMatchCount: Map<string, number> = new Map<string, number>();
         const matches: GameResult[] = [];
-        let counter =  0;
-        let winCounter =  0;
+        
         for (const element of replays) {
             if (Buffer.isBuffer(element.metadata))
                 element.metadata = JSON.parse(snappy.uncompressSync(element.metadata as Buffer, { asBuffer: false }) as string);
@@ -75,9 +74,6 @@ class Glicko2Manager {
             if (!playerData || !playerData.some(a => a.State === "won"))
                 continue;
 
-
-
-
             if (playerData[0].NameWithoutRating && playerData[1].NameWithoutRating) {
                 
 
@@ -89,13 +85,9 @@ class Glicko2Manager {
 
                 const gPlayer1: Rating = players.get(player0Name) as Rating;
                 gPlayer1.numberOfResults = 0;
-
+                gPlayer1.lastRatingPeriodEnd = element.creation_date;
     
                 const player1Name = playerData[1].NameWithoutRating;
-
-                if(player0Name === "Feldfeld" || player1Name === "Feldfeld"){
-                    ++counter;
-                }
 
                 if (!players.has(player1Name)) {
                     players.set(player1Name, new Rating(Rating.defaultRating, Rating.defaultDeviation, Rating.defaultVolatility, 0, element.creation_date));
@@ -104,13 +96,10 @@ class Glicko2Manager {
 
                 const gPlayer2 = players.get(player1Name) as Rating;
                 gPlayer2.numberOfResults = 0;
+                gPlayer2.lastRatingPeriodEnd = element.creation_date;
 
                 const winner = playerData[1].State === "won" ? gPlayer2 : gPlayer1;
                 const loser = playerData[1].State !== "won" ? gPlayer2 : gPlayer1;
-
-                if(player0Name === "Feldfeld" &&  players.get(player0Name) === winner|| player1Name === "Feldfeld" &&  players.get(player1Name) === winner){
-                    ++winCounter;
-                }
 
                 playersMatchCount.set(player0Name, (playersMatchCount.get(player0Name) ?? 0) + 1);
                 playersMatchCount.set(player1Name, (playersMatchCount.get(player1Name) ?? 0) + 1);
@@ -131,32 +120,6 @@ class Glicko2Manager {
                 }
             }
         }
-
-        console.log(counter, winCounter);
-
-        const player1 = new Rating(1500.0, 200.0, 0.06, 0, new Date());
-        const player2 = new Rating(1400.0, 30.0, 0.06, 0, new Date());
-        const player3 = new Rating(1550.0, 100.0, 0.06, 0, new Date());
-        const player4 = new Rating(1700.0, 300.0, 0.06, 0, new Date());
-        
-        const matchList: GameRatingPeriodResults = new GameRatingPeriodResults([
-            (new GameResult(player1, player2, false)),
-            (new GameResult(player3, player1, false)),
-            (new GameResult(player4, player1, false)),
-        ]);
-        // this.calculator.updateRatings(matchList, true);
-
-        // const matchList: FloatingRatingPeriodResults = new FloatingRatingPeriodResults([
-        //     (new FloatingResult(player1, player2, 100.0)),
-        //     (new FloatingResult(player3, player1, 100.0)),
-        //     (new FloatingResult(player4, player1, 100.0)),
-        // ]);
-        this.calculator.updateRatings(matchList, true);
-
-        console.log(player1);
-
-
-
 
         pino().info(`Rebuilding the glicko2 database. ${Array.from(players.keys()).length} ratings(s) were added for ${playersIds.size} player(s).`);
     }
