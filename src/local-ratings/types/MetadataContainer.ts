@@ -49,9 +49,8 @@ export class LocalRatingsMetadataContainer {
         const teamData: { [team: string]: number } = {};
         this.attribs.settings?.PlayerData?.forEach(x => {
             const team = x.Team;
-            if (!team)
+            if (team === null || team === undefined)
                 return;
-
 
             (team in teamData) ? teamData[team] += 1 : teamData[team] = 1;
         });
@@ -59,6 +58,7 @@ export class LocalRatingsMetadataContainer {
         if ("-1" in teamData)
             for (let i = -teamData["-1"]; i < 0; i++)
                 teamData[i] = 1;
+
         return teamData;
     }
 

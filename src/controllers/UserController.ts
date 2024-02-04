@@ -187,7 +187,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     On lp.id = rlp.lobby_player_id
     Inner Join replays r
     On r.match_id = rlp.match_id
-    Where u.id = @id`).all({ "id": request.params.id }) as Replays;
+    Where u.id = @id`).all({ "id": lobby_user?.id }) as Replays;
 
     result.replays = replays;
     for (const element of result.replays)
