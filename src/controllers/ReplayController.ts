@@ -18,7 +18,56 @@ import EUserRole from "../enumerations/EUserRole";
 import { z } from "zod";
 import { MetadataSettings } from "../types/MetadataSettings";
 import { LobbyRankingHistoryEntries, LobbyRankingHistoryEntriesSchema, LobbyRankingHistoryEntry } from "../types/LobbyRankingHistoryEntry";
+import { ReplayListItem, ReplayListItems, ReplayListItemsSchema } from "../types/ReplayListItem";
+import { LocalRatingsReplay } from "../local-ratings/Replay";
 
+function get_list_items_from_local_ratings(matchIds : string[], reply: FastifyReply, fastify: FastifyInstance) {
+    const replays: ReplayListItems = matchIds.map(matchId => fastify.replayDb.replayDatabase[matchId]).map((replay: LocalRatingsReplay) => ({
+        "mapName": replay.mapName,
+        "playerNames": replay.players,
+        "machId": replay.directory,
+        "date": replay.date
+    } as ReplayListItem));
+
+    if (!replays || !replays.length) {
+        reply.code(204);
+        return;
+    }
+
+    reply.send(replays);
+}
+
+function get_latest_replays(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
+        reply.code(401);
+        return;
+    }
+    
+    const replays: Replays = fastify.database.prepare('SELECT r.match_id, r.creation_date FROM replays r').all() as Replays;
+    const matchIds : string[] = replays.sort((a,b) => new Date(a.creation_date as unknown as string).getTime() - new Date(b.creation_date as unknown as string).getTime()).map(a => a.match_id);
+    get_list_items_from_local_ratings(matchIds.slice(0, 10), reply, fastify);
+}
+
+function get_my_replays_list_items(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
+        reply.code(401);
+        return;
+    }
+
+    const replays: Replays = fastify.database.prepare('SELECT r.match_id FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": request.claims?.id }) as Replays;
+    const matchIds : string[] = replays.map(a => a.match_id);
+    get_list_items_from_local_ratings(matchIds, reply, fastify);
+}
+
+function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
+        reply.code(401);
+        return;
+    }
+
+    const matchIds: string[] = Object.keys(fastify.replayDb.replayDatabase) as string[];
+    get_list_items_from_local_ratings(matchIds, reply, fastify);
+}
 
 
 function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void {
@@ -143,7 +192,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
     reply.code(200);
 }
 
-function extract_commands_data(text: string): ReplayMetaData | null |  undefined {
+function extract_commands_data(text: string): ReplayMetaData | null | undefined {
     try {
         const lines = text.replaceAll("\r\n", "\n").split("\n");
         if (!lines || !lines.length || !lines[0])
@@ -204,7 +253,6 @@ function extract_commands_data(text: string): ReplayMetaData | null |  undefined
         console.error(error);
     }
 }
-
 
 const rebuild_glicko_rank_history = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
@@ -517,6 +565,41 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         reply.send(replays.length ? replays[0] : null);
     });
+
+
+    server.get('/my-list-items', {
+        schema: {
+            response: {
+                "200": zodToJsonSchema(ReplayListItemsSchema),
+                "401": { type: 'null', description: 'Unauthorized' },
+                "403": { type: 'null', description: 'Unauthorized' }
+            },
+            ...schemaCommon
+        }
+    }, (request: FastifyRequest, reply: FastifyReply) => get_my_replays_list_items(request, reply, server));
+
+    server.get('/all-list-items', {
+        schema: {
+            response: {
+                "200": zodToJsonSchema(ReplayListItemsSchema),
+                "401": { type: 'null', description: 'Unauthorized' },
+                "403": { type: 'null', description: 'Unauthorized' }
+            },
+            ...schemaCommon
+        }
+    }, (request: FastifyRequest, reply: FastifyReply) => get_list_items(request, reply, server));
+
+    server.get('/latest-list-items', {
+        schema: {
+            response: {
+                "200": zodToJsonSchema(ReplayListItemsSchema),
+                "401": { type: 'null', description: 'Unauthorized' },
+                "403": { type: 'null', description: 'Unauthorized' }
+            },
+            ...schemaCommon
+        }
+    }, (request: FastifyRequest, reply: FastifyReply) => get_latest_replays(request, reply, server));
+
 
     server.get('/latest', {
         schema: {

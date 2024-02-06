@@ -2,8 +2,8 @@ import pino from "pino";
 import { LocalRatingsCache } from "./Cache";
 import { LocalRatingsCalculator } from "./Calculator";
 import { LocalRatingsMinifier } from "./Minifier";
-import { LocalRatingsHistoryDatabase } from "./types/HistoryDatabase";
-import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
+import { LocalRatingsHistoryDatabase, LocalRatingsHistoryMinifiedDatabase } from "./types/HistoryDatabase";
+import { LocalRatingsMinifiedRatingDatabase, LocalRatingsRatingDatabase } from "./types/RatingDatabase";
 import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
 
 /**
@@ -27,8 +27,8 @@ class LocalRatingsRatingsDB {
     }
 
     load() {
-        this.ratingsDatabase = this.minifier.magnifyRatingsDatabase(this.cache.load("ratingsDatabase"));
-        this.historyDatabase = this.minifier.magnifyHistoryDatabase(this.cache.load("historyDatabase"));
+        this.ratingsDatabase = this.minifier.magnifyRatingsDatabase(this.cache.load("ratingsDatabase") as LocalRatingsMinifiedRatingDatabase);
+        this.historyDatabase = this.minifier.magnifyHistoryDatabase(this.cache.load("historyDatabase") as LocalRatingsHistoryMinifiedDatabase);
         this.calculator.ratingsDatabase = this.ratingsDatabase;
         this.calculator.historyDatabase = this.historyDatabase;
     }

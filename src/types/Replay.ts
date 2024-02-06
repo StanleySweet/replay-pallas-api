@@ -3,7 +3,7 @@
  * SPDX-FileCopyrightText: © 2022 Stanislas Daniel Claude Dolcini
  */
 
-import { ReplayMetaData, ReplayMetaDataSchema } from "./ReplayMetaData";
+import { ReplayMetaDataSchema } from "./ReplayMetaData";
 import { z } from "zod";
 import snappy from 'snappy';
 

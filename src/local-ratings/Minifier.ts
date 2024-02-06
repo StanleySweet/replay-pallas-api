@@ -31,7 +31,8 @@ class LocalRatingsMinifier {
             "nomad",
             "mods",
             "isValid",
-            "scores"
+            "scores",
+            "mapName"
         ];
 
         this.minifiedReplayKeys = [
@@ -51,7 +52,8 @@ class LocalRatingsMinifier {
             "nomad",
             "mods",
             "isValid",
-            "scores"
+            "scores",
+            "mapName"
         ];
 
 

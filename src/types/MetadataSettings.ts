@@ -13,7 +13,7 @@ const MetadataSettingsSchema = z.object({
     RatingEnabled: z.boolean(),
     LockTeams: z.boolean(),
     Seed: z.string(),
-    StartingResources: z.any(),
+    StartingResources: z.number(),
     PopulationCap: z.number(),
     WorldPopulation: z.optional(z.number()),
     WorldPopulationCap: z.number(),

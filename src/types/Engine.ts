@@ -41,7 +41,7 @@ class Engine {
         return replays;
     }
 
-    WriteJSONFile(x: string, data: any): void {
+    WriteJSONFile(x: string, data: unknown): void {
         const path = Path.dirname(x);
         if (!existsSync(path)){
             mkdirSync(path, {recursive : true});
@@ -62,13 +62,8 @@ class Engine {
             }]
         };
     }
-    ProfileStart(_: string) {
-        // Nothing to do there.
-    }
-    ProfileStop() {
-        // Nothing to do there.
-    }
-    ReadJSONFile(fileName: string): any {
+
+    ReadJSONFile(fileName: string): unknown {
         return JSON.parse(readFileSync(fileName, { encoding: "utf-8" }));
     }
 
@@ -100,11 +95,6 @@ class Engine {
         }
 
 
-    }
-
-    ConfigDB_WriteFile(section: string, key: string): void {
-
-        // Nothing to do there.
     }
 
     ConfigDB_GetValue(section: string, key: string): string | null {

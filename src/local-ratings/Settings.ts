@@ -6,7 +6,7 @@ import { LocalRatingsOptions } from "./types/Options";
  */
 class LocalRatingsSettings {
     getSaved() {
-        const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json");
+        const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json") as LocalRatingsOptions;
         let settings: { [key: string]: string | null } = {};
         for (const category of optionsJSON) {
             for (const option of category.options) {
@@ -25,7 +25,7 @@ class LocalRatingsSettings {
     }
 
     getDefault() {
-        const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json");
+        const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json") as LocalRatingsOptions;
         let settings: { [key: string]: string | null } = {};
         for (const category of optionsJSON) {
             for (const option of category.options) {
@@ -44,7 +44,6 @@ class LocalRatingsSettings {
     createDefaultSettingsIfNotExist(): { [key: string]: string | null } {
         const settings = this.getDefault();
         Object.keys(settings).filter(key => !Engine.ConfigDB_GetValue("user", key)).forEach(key => Engine.ConfigDB_CreateValue("user", key, settings[key] ?? ""));
-        Engine.ConfigDB_WriteFile("user", "config/user.cfg");
         return settings;
     }
 
@@ -57,7 +56,6 @@ class LocalRatingsSettings {
                 Engine.ConfigDB_CreateValue("user", key, settings[settingsKey] ?? "");
             }
         }
-        Engine.ConfigDB_WriteFile("user", "config/user.cfg");
         return settings;
     }
 

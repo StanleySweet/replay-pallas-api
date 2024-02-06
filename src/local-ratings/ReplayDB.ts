@@ -5,6 +5,7 @@ import { LocalRatingsReplay } from "./Replay";
 import { LocalRatingsMetadataContainer } from "./types/MetadataContainer";
 import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
 import pino from 'pino';
+import { LocalRatingsMinifiedRatingDatabase } from "./types/RatingDatabase";
 
 /**
  * This class is responsible for updating or rebuilding the replay database stored in the cache folder.
@@ -42,7 +43,7 @@ class LocalRatingsReplayDB {
     }
 
     load() {
-        this.replayDatabase = this.minifier.magnifyReplayDatabase(this.cache.load("replayDatabase"));
+        this.replayDatabase = this.minifier.magnifyReplayDatabase(this.cache.load("replayDatabase") as LocalRatingsMinifiedRatingDatabase);
     }
 
     save() {

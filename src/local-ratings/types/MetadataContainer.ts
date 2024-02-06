@@ -62,8 +62,8 @@ export class LocalRatingsMetadataContainer {
         return teamData;
     }
 
-    getStartingResources() {
-        return this.attribs.settings?.StartingResources;
+    getStartingResources() : number {
+        return this.attribs.settings?.StartingResources ?? 0;
     }
 
     getPopulationCap() {
@@ -98,6 +98,10 @@ export class LocalRatingsMetadataContainer {
 
     getNomad(): boolean {
         return this.attribs.settings?.Nomad ?? false;
+    }
+
+    getMapName(): string {
+        return this.attribs.settings?.Name ?? this.attribs.settings?.mapName ?? "";
     }
 
     getMods() {

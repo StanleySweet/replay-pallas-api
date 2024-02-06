@@ -8,7 +8,7 @@ import { LocalRatingsSequences } from "./Sequences";
  */
 class LocalRatingsReplay {
 
-    [key: string]: any;
+    [key: string]: unknown;
     cheatsEnabled: boolean;
     civs: string[];
     date: string;
@@ -19,7 +19,8 @@ class LocalRatingsReplay {
     nomad : boolean;
     populationCap: number | undefined;
     revealedMap  : boolean;
-    startingResources : any;
+    mapName : string;
+    startingResources : number;
     teamsSize : { [team: string]: number };
     worldPopulation: boolean;
     players: string[];
@@ -38,6 +39,7 @@ class LocalRatingsReplay {
         this.exploredMap = metadata.getExploredMap();
         this.mods = metadata.getMods();
         this.nomad = metadata.getNomad();
+        this.mapName = metadata.getMapName();
         this.populationCap = metadata.getPopulationCap();
         this.revealedMap = metadata.getRevealedMap();
         this.startingResources = metadata.getStartingResources();

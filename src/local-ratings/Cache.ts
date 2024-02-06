@@ -5,7 +5,7 @@ import { EngineInstance as Engine } from '../types/Engine';
  * It is able to detect whether the database structure has changed, due to installation of a new version of the mod.
  */
 class LocalRatingsCache {
-    version = 5;
+    version = 6;
     replayDatabaseFile: string;
     ratingsDatabaseFile: string;
     historyDatabaseFile: string;
@@ -13,13 +13,12 @@ class LocalRatingsCache {
     cacheVersionFile: string;
 
     constructor() {
-        const version = Engine.GetEngineInfo().mods.filter(x => x.mod == "public")[0].version;
-        const path = "dist/cache/";
-        this.replayDatabaseFile = path + version + "/replayDatabase.json";
-        this.ratingsDatabaseFile = path + version + "/ratingsDatabase.json";
-        this.historyDatabaseFile = path + version + "/historyDatabase.json";
-        this.aliasesDatabaseFile = path + version + "/aliasesDatabase.json";
-        this.cacheVersionFile = path + version + "/cacheVersion.json";
+        const path = "dist/cache";
+        this.replayDatabaseFile = path + "/replayDatabase.json";
+        this.ratingsDatabaseFile = path + "/ratingsDatabase.json";
+        this.historyDatabaseFile = path + "/historyDatabase.json";
+        this.aliasesDatabaseFile = path + "/aliasesDatabase.json";
+        this.cacheVersionFile = path + "/cacheVersion.json";
 
         this.createCacheFilesIfNotExist();
     }
@@ -48,28 +47,22 @@ class LocalRatingsCache {
     }
 
     updateVersion() {
-        Engine.ProfileStart("LocalRatingsCacheUpdateVersion");
         Engine.WriteJSONFile(this.cacheVersionFile, { "version": this.version });
-        Engine.ProfileStop();
     }
 
     isUpdateRequired() {
-        return !Engine.FileExists(this.cacheVersionFile) || Engine.ReadJSONFile(this.cacheVersionFile).version !== this.version;
+        return !Engine.FileExists(this.cacheVersionFile) || (Engine.ReadJSONFile(this.cacheVersionFile) as { "version": number }).version !== this.version;
     }
 
     load(tag: string) {
-        Engine.ProfileStart("LocalRatingsLoadCacheFile");
         const file = this.tagToFilename(tag);
         const data = Engine.FileExists(file) && Engine.ReadJSONFile(file);
-        Engine.ProfileStop();
         return (data) ? data : {};
     }
 
-    save(tag: string, json: any) {
-        Engine.ProfileStart("LocalRatingsSaveCacheFile");
+    save(tag: string, json: unknown) {
         const file = this.tagToFilename(tag);
         Engine.WriteJSONFile(file, json);
-        Engine.ProfileStop();
     }
 
 }
