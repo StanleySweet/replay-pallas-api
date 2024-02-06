@@ -45,7 +45,7 @@ function get_latest_replays(request: FastifyRequest, reply: FastifyReply, fastif
     }
     
     const replays: Replays = fastify.database.prepare('SELECT r.match_id, r.creation_date FROM replays r').all() as Replays;
-    const matchIds : string[] = replays.sort((a,b) => new Date(a.creation_date as unknown as string).getTime() - new Date(b.creation_date as unknown as string).getTime()).map(a => a.match_id);
+    const matchIds : string[] = replays.sort((b, a) => new Date(a.creation_date as unknown as string).getTime() - new Date(b.creation_date as unknown as string).getTime()).map(a => a.match_id);
     get_list_items_from_local_ratings(matchIds.slice(0, 10), reply, fastify);
 }
 
