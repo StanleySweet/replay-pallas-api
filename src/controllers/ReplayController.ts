@@ -26,7 +26,8 @@ function get_list_items_from_local_ratings(matchIds : string[], reply: FastifyRe
         "mapName": replay.mapName,
         "playerNames": replay.players,
         "machId": replay.directory,
-        "date": replay.date
+        "date": replay.date,
+        "civs": replay.civs
     } as ReplayListItem));
 
     if (!replays || !replays.length) {
