@@ -9,7 +9,7 @@ const ReplayListItemSchema = z.object({
     "mapName": z.string(),
     "playerNames": z.array(z.string()),
     "civs": z.array(z.string()),
-    "machId": z.string(),
+    "matchId": z.string(),
     "date": z.string()
 });
 

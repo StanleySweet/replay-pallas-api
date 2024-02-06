@@ -25,7 +25,7 @@ function get_list_items_from_local_ratings(matchIds : string[], reply: FastifyRe
     const replays: ReplayListItems = matchIds.map(matchId => fastify.replayDb.replayDatabase[matchId]).map((replay: LocalRatingsReplay) => ({
         "mapName": replay.mapName,
         "playerNames": replay.players,
-        "machId": replay.directory,
+        "matchId": replay.directory,
         "date": replay.date,
         "civs": replay.civs
     } as ReplayListItem));

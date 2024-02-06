@@ -14,6 +14,8 @@ import { JOSE_ALG as alg, JOSE_SECRET } from "../project_globals";
 import { Replays } from "../types/Replay";
 import { mode } from "../Utils";
 import snappy from 'snappy';
+import { LocalRatingsReplay } from "../local-ratings/Replay";
+import { ReplayListItem } from "../types/ReplayListItem";
 
 const avg = (array: number[]) => array.reduce((a, b) => a + b) / array.length;
 
@@ -106,8 +108,16 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     On r.match_id = rlp.match_id
     Where lp.id = @id`).all({ "id": request.params.id }) as Replays;
 
-    result.replays = replays;
-    for (const element of result.replays)
+    result.replays = replays.map(r => fastify.replayDb.replayDatabase[r.match_id]).map((replay: LocalRatingsReplay) => ({
+        "mapName": replay.mapName,
+        "playerNames": replay.players,
+        "matchId": replay.directory,
+        "date": replay.date,
+        "civs": replay.civs
+    } as ReplayListItem));
+
+    
+    for (const element of replays)
         element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
 
     compute_statistics(result, replays);
@@ -189,8 +199,15 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     On r.match_id = rlp.match_id
     Where u.id = @id`).all({ "id": lobby_user?.id }) as Replays;
 
-    result.replays = replays;
-    for (const element of result.replays)
+    result.replays = replays.map(r => fastify.replayDb.replayDatabase[r.match_id]).map((replay: LocalRatingsReplay) => ({
+        "mapName": replay.mapName,
+        "playerNames": replay.players,
+        "matchId": replay.directory,
+        "date": replay.date,
+        "civs": replay.civs
+    } as ReplayListItem));
+
+    for (const element of replays)
         element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
 
     compute_statistics(result, replays);

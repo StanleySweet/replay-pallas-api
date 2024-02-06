@@ -6,7 +6,7 @@
 import { z } from "zod";
 import EUserRole from "../enumerations/EUserRole";
 import { FastifyRequest } from "fastify";
-import { ReplaysSchema } from "./Replay";
+import { ReplayListItemsSchema } from "./ReplayListItem";
 
 const AddUserSchema = z.object({
     "password": z.string(),
@@ -62,7 +62,7 @@ const UserDetailSchema = z.object({
     "SecondMostUsedCmd": z.string(),
     "MostUsedCmd": z.string(),
     "MatchCount": z.number(),
-    "replays": ReplaysSchema,
+    "replays": ReplayListItemsSchema,
     "graph": EloGraphDataSchema.optional()
 });
 
