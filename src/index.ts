@@ -27,7 +27,8 @@ import { HealthController } from "./controllers/HealthController";
 const server = fastify({ logger: true });
 server.register(cors, {
     origin: '*', // Allowing requests from any origin
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] // Allowing any method
+    allowedHeaders: '*',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] // Allowing any method
 });
 
 /* eslint-disable */
@@ -87,6 +88,15 @@ async function setupAuthent() {
     });
 }
 setupAuthent();
+server.addHook('preHandler', (req, res, done) => {
+    const isPreflight = /options/i.test(req.method);
+    if (isPreflight) {
+      return res.send();
+    }
+
+    done();
+  });
+
 
 server.register(HealthController, { prefix: '/health' });
 server.register(UserController, { prefix: '/users' });
