@@ -58,8 +58,8 @@ function get_my_replays_list_items(request: FastifyRequest, reply: FastifyReply,
         return;
     }
 
-    const replays: Replays = fastify.database.prepare('SELECT r.match_id FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": request.claims?.id }) as Replays;
-    const matchIds : string[] = replays.map(a => a.match_id);
+    const replays: Replays = fastify.database.prepare('SELECT r.match_id, r.creation_date FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": request.claims?.id }) as Replays;
+    const matchIds : string[] = replays.sort((b, a) => new Date(a.creation_date as unknown as string).getTime() - new Date(b.creation_date as unknown as string).getTime()).map(a => a.match_id);
     get_list_items_from_local_ratings(matchIds, reply, fastify);
 }
 
