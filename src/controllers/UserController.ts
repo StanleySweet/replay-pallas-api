@@ -374,6 +374,10 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
                     type: 'null',
                     description: 'No Content'
                 },
+                400: {
+                    type: 'null',
+                    description: 'Bad request'
+                },
                 401: {
                     type: 'null',
                     description: 'Unauthorized'
