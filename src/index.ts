@@ -70,7 +70,7 @@ server.register(fastifySwaggerUi, {
 
 async function setupAuthent() {
     server.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
-        if (request.url.startsWith("/users/token") || request.url.startsWith("/swagger/ui"))
+        if (request.url.startsWith("/users/token") || (request.url === "/users/" && request.method === "POST") || request.url.startsWith("/swagger/ui"))
             return;
 
         const token = request.headers.authorization?.replace("Bearer ", "") as string;
