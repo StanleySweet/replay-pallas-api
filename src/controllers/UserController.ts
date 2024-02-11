@@ -384,7 +384,7 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
         }
     }, (request: AddUserRequest, reply: FastifyReply) => create_user(request, reply, fastify));
 
-    fastify.get("/all", {
+    fastify.get("/", {
         schema: {
             response: {
                 200: zodToJsonSchema(UsersSchema),
