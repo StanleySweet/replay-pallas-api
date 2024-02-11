@@ -144,7 +144,10 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
 
     const task = new Task(
         'simple task',
-        () => { server.glicko2Manager.rebuild() },
+        () => { 
+            server.glicko2Manager.rebuild() 
+            server.ratingsDb.rebuild();
+        },
         (err) => { /* handle errors here */ }
     )
     const job = new SimpleIntervalJob({ seconds: 3600, }, task)

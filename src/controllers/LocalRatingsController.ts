@@ -286,7 +286,7 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
         const user = users.filter(a => a.nick === x[0])[0];
 
         if (!user)
-            pino().error("Could not find user with nick" + x[0]);
+            pino().error("Could not find user with nick: '" + x[0] + "'");
 
         return {
             "rank": i + 1, // rank

@@ -47,7 +47,7 @@ function get_latest_replays(request: FastifyRequest, reply: FastifyReply, fastif
     }
 
     let matchIds: string[] = Object.keys(fastify.replayDb.replayDatabase) as string[];
-    matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a] as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b] as unknown as string).getTime());
+    matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a].date as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b].date as unknown as string).getTime());
     get_list_items_from_local_ratings(matchIds.slice(0, 10), reply, fastify);
 }
 
@@ -71,7 +71,7 @@ function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: F
     }
 
     let matchIds: string[] = Object.keys(fastify.replayDb.replayDatabase) as string[];
-    matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a] as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b] as unknown as string).getTime());
+    matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a].date as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b].date as unknown as string).getTime());
     get_list_items_from_local_ratings(matchIds, reply, fastify);
 }
 
