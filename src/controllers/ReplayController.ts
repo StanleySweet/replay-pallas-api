@@ -21,7 +21,7 @@ import { LobbyRankingHistoryEntries, LobbyRankingHistoryEntriesSchema, LobbyRank
 import { ReplayListItem, ReplayListItems, ReplayListItemsSchema } from "../types/ReplayListItem";
 import { LocalRatingsReplay } from "../local-ratings/Replay";
 
-function get_list_items_from_local_ratings(matchIds : string[], reply: FastifyReply, fastify: FastifyInstance) {
+function get_list_items_from_local_ratings(matchIds: string[], reply: FastifyReply, fastify: FastifyInstance) {
     const replays: ReplayListItems = matchIds.map(matchId => fastify.replayDb.replayDatabase[matchId]).map((replay: LocalRatingsReplay) => ({
         "mapName": replay.mapName,
         "playerNames": replay.players,
@@ -45,9 +45,9 @@ function get_latest_replays(request: FastifyRequest, reply: FastifyReply, fastif
         reply.send();
         return;
     }
-    
+
     let matchIds: string[] = Object.keys(fastify.replayDb.replayDatabase) as string[];
-    matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a] as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b] as unknown as string).getTime()))
+    matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a] as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b] as unknown as string).getTime());
     get_list_items_from_local_ratings(matchIds.slice(0, 10), reply, fastify);
 }
 
@@ -59,7 +59,7 @@ function get_my_replays_list_items(request: FastifyRequest, reply: FastifyReply,
     }
 
     const replays: Replays = fastify.database.prepare('SELECT r.match_id, r.creation_date FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": request.claims?.id }) as Replays;
-    const matchIds : string[] = replays.sort((b, a) => new Date(a.creation_date as unknown as string).getTime() - new Date(b.creation_date as unknown as string).getTime()).map(a => a.match_id);
+    const matchIds: string[] = replays.sort((b, a) => new Date(a.creation_date as unknown as string).getTime() - new Date(b.creation_date as unknown as string).getTime()).map(a => a.match_id);
     get_list_items_from_local_ratings(matchIds, reply, fastify);
 }
 
@@ -71,7 +71,7 @@ function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: F
     }
 
     let matchIds: string[] = Object.keys(fastify.replayDb.replayDatabase) as string[];
-    matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a] as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b] as unknown as string).getTime()))
+    matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a] as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b] as unknown as string).getTime());
     get_list_items_from_local_ratings(matchIds, reply, fastify);
 }
 

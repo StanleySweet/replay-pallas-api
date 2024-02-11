@@ -3,11 +3,11 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
-import { LocalRatingsSettings } from '../Settings';
+import { LocalRatingsSettingsManager } from '../Settings';
 import { LocalRatingsCache } from '../Cache';
 import { LocalRatingsReplayDB } from '../ReplayDB';
 import { LocalRatingsRatingsDB } from '../RatingsDB';
-import { LocalRatingsAlias } from '../Alias';
+import { LocalRatingsAliasManager } from '../Alias';
 import { LocalRatingsMinifier } from '../Minifier';
 
 /**
@@ -72,14 +72,14 @@ function sortString_LocalRatings(a: string, b: string): number {
 export interface LocalRatingsState {
     "ratingsDb": LocalRatingsRatingsDB,
     "replayDb": LocalRatingsReplayDB,
-    "aliasDb": LocalRatingsAlias,
+    "aliasDb": LocalRatingsAliasManager,
 }
 
 declare module 'fastify' {
     interface FastifyInstance extends LocalRatingsState {
         ratingsDb: LocalRatingsRatingsDB
         replayDb: LocalRatingsReplayDB,
-        aliasDb: LocalRatingsAlias
+        aliasDb: LocalRatingsAliasManager
     }
 }
 
@@ -90,14 +90,14 @@ declare module 'fastify' {
  */
 function init_LocalRatings() : LocalRatingsState {
     // Write default settings in user.cfg if not present
-    const settings = new LocalRatingsSettings();
+    const settings = new LocalRatingsSettingsManager();
     settings.createDefaultSettingsIfNotExist();
 
     const cache = new LocalRatingsCache();
     const minifier = new LocalRatingsMinifier();
     const replayDB = new LocalRatingsReplayDB(cache, minifier);
     const ratingsDB = new LocalRatingsRatingsDB(cache, minifier);
-    const alias = new LocalRatingsAlias(cache);
+    const alias = new LocalRatingsAliasManager(cache);
     if (replayDB.cache.isUpdateRequired())
     {
         replayDB.rebuild();

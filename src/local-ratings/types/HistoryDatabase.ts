@@ -17,7 +17,7 @@ interface LocalRatingsHistoryDatabase {
 }
 
 interface LocalRatingsHistoryMinifiedDatabaseElement {
-    [index: number]: any
+    [index: number]: number
 }
 
 interface LocalRatingsHistoryMinifiedDirectoryElement {

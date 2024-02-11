@@ -121,14 +121,18 @@ class LocalRatingsMinifier {
     magnifyReplay(minifiedReplayObj: LocalRatingsMinifiedReplayDatabaseElement) : LocalRatingsReplay {
         return Object.fromEntries(this.minifiedReplayKeys.map((replayKey, replayKeyIndex) => {
             if (replayKey == "scores") {
-                return [replayKey, minifiedReplayObj[replayKeyIndex].map((_: string, playerIndex: number) =>
+                const data = minifiedReplayObj[replayKeyIndex] as string[];
+                return [replayKey,data.map((_: string, playerIndex: number) =>
                     Object.fromEntries(this.scoreKeys.map((scoreKey, scoreKeyIndex) =>
-                        [scoreKey, minifiedReplayObj[replayKeyIndex][playerIndex][scoreKeyIndex]]
+                        [scoreKey, data[playerIndex][scoreKeyIndex]]
                     ))
                 )];
             }
             if (replayKey == "civs")
-                return [replayKey, minifiedReplayObj[replayKeyIndex].map((x : number) => this.civs[x])];
+            {
+                const data = minifiedReplayObj[replayKeyIndex] as number[];
+                return [replayKey, data.map((x: number) => this.civs[x])];
+            }
             if (["worldPopulation", "hasAiPlayers", "cheatsEnabled", "revealedMap", "exploredMap", "nomad", "isValid"].includes(replayKey as keyof typeof LocalRatingsReplay))
                 return [replayKey, minifiedReplayObj[replayKeyIndex] ? true : false];
             return [replayKey, minifiedReplayObj[replayKeyIndex]];

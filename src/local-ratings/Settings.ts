@@ -1,13 +1,17 @@
 import { EngineInstance as Engine } from "../types/Engine";
 import { LocalRatingsOptions } from "./types/Options";
 
+type LocalRatingsSettings = {
+    [key: string]: string | null
+}
+
 /**
  * This class is responsible for dealing with settings.
  */
-class LocalRatingsSettings {
-    getSaved() {
+class LocalRatingsSettingsManager {
+    getSaved(): LocalRatingsSettings {
         const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json") as LocalRatingsOptions;
-        let settings: { [key: string]: string | null } = {};
+        let settings: LocalRatingsSettings = {};
         for (const category of optionsJSON) {
             for (const option of category.options) {
                 const configOption = option.config as keyof typeof settings;
@@ -15,18 +19,17 @@ class LocalRatingsSettings {
             }
         }
 
-
         settings = Object.assign(settings, this.getDynamicSaved());
         return settings;
     }
 
-    async getDynamicSaved(): Promise<{ "localratings.modfilter": string | null }> {
+    getDynamicSaved(): { "localratings.modfilter": string | null } {
         return { "localratings.modfilter": Engine.ConfigDB_GetValue("user", "localratings.modfilter") };
     }
 
-    getDefault() {
+    getDefault(): LocalRatingsSettings {
         const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json") as LocalRatingsOptions;
-        let settings: { [key: string]: string | null } = {};
+        let settings: LocalRatingsSettings = {};
         for (const category of optionsJSON) {
             for (const option of category.options) {
                 const configOption = option.config as keyof typeof settings;
@@ -41,13 +44,13 @@ class LocalRatingsSettings {
         return { "localratings.modfilter": "" };
     }
 
-    createDefaultSettingsIfNotExist(): { [key: string]: string | null } {
+    createDefaultSettingsIfNotExist(): LocalRatingsSettings {
         const settings = this.getDefault();
         Object.keys(settings).filter(key => !Engine.ConfigDB_GetValue("user", key)).forEach(key => Engine.ConfigDB_CreateValue("user", key, settings[key] ?? ""));
         return settings;
     }
 
-    restoreLocalDefault(): { [key: string]: string | null } {
+    restoreLocalDefault(): LocalRatingsSettings {
         const settings = this.getDefault();
         for (const key of Object.keys(settings)) {
             Engine.ConfigDB_RemoveValue("user", key);
@@ -62,5 +65,5 @@ class LocalRatingsSettings {
 }
 
 export {
-    LocalRatingsSettings
+    LocalRatingsSettingsManager
 };

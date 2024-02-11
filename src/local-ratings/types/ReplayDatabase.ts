@@ -1,7 +1,7 @@
 import { LocalRatingsReplay } from "../Replay";
 
 interface LocalRatingsMinifiedReplayDatabaseElement {
-    [index: number]: any
+    [index: number]: unknown
 }
 
 interface LocalRatingsReplayDatabase {

@@ -3,22 +3,26 @@ import { sortString_LocalRatings } from "./utilities/functions_utility";
 import { LocalRatingsHistoryDatabase } from "./types/HistoryDatabase";
 import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
 
+type LocalRatingsAliasDb = [
+
+]
+
 /**
  * This class is responsible for updating the aliases database stored in the cache folder
  * and for updating ratings and history databases bases on alias association.
  */
-class LocalRatingsAlias {
+class LocalRatingsAliasManager {
 
-    aliasesDatabase: any;
+    aliasesDatabase: LocalRatingsAliasDb;
     cache: LocalRatingsCache;
 
     constructor(cache: LocalRatingsCache) {
-        this.aliasesDatabase = {};
+        this.aliasesDatabase = {}  as LocalRatingsAliasDb;
         this.cache = cache;
     }
 
     load() {
-        this.aliasesDatabase = this.cache.load("aliasesDatabase");
+        this.aliasesDatabase = this.cache.load("aliasesDatabase") as LocalRatingsAliasDb;
     }
 
     save() {
@@ -31,7 +35,18 @@ class LocalRatingsAlias {
 
         this.load();
 
-        const database = !historyDatabase ? ratingsDatabase! : historyDatabase;
+        if (!historyDatabase && !ratingsDatabase)
+            return;
+
+
+        let database: LocalRatingsRatingDatabase | LocalRatingsHistoryDatabase;
+        if (historyDatabase)
+            database = historyDatabase;
+        else if (ratingsDatabase)
+            database = ratingsDatabase;
+        else
+            return;
+        
         const entries: [string, string[]][] = Object.entries(this.aliasesDatabase);
         const groups = entries
             .map(([primary, aliases]) =>
@@ -92,5 +107,5 @@ class LocalRatingsAlias {
 }
 
 export {
-    LocalRatingsAlias
+    LocalRatingsAliasManager
 };

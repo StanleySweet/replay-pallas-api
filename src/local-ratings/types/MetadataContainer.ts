@@ -38,11 +38,11 @@ export class LocalRatingsMetadataContainer {
     }
 
     getPlayerNames(): string[] {
-        return this.attribs.settings?.PlayerData?.map(x => x.Name!) ?? [];
+        return this.attribs.settings?.PlayerData?.map(x => x.Name).filter((item): item is string => !!item) ?? [];
     }
 
     getCivs(): string[] {
-        return this.attribs.settings?.PlayerData?.map(x => x.Civ!) ?? [];
+        return this.attribs.settings?.PlayerData?.map(x => x.Civ).filter((item): item is string => !!item) ?? [];
     }
 
     getTeamsSize() {

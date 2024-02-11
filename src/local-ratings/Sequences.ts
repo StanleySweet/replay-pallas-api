@@ -56,9 +56,9 @@ class LocalRatingsSequences
             this.successfulBribes = this.getSuccessfulBribes(sequences);
     }
 
-    sumArraysComponentWise(...arrays : any[])
+    sumArraysComponentWise(...arrays : number[][])
     {
-        return arrays.reduce((array1, array2) => array1.map((a : any, i : any) => a + array2[i]));
+        return arrays.reduce((array1, array2) => array1.map((a : number, i : number) => a + array2[i]));
     }
 
     validate()

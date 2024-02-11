@@ -15,16 +15,18 @@ export interface Sequences
     tradeIncome: any;
     tributesReceived: any;
     tributesSent: any;
-    resourcesSold: any;
-    resourcesBought: any;
-    resourcesUsed: any;
-    resourcesGathered: ResourceGatheredSequence;
+    resourcesSold: ResourceSequence;
+    resourcesBought: ResourceSequence;
+    resourcesUsed: ResourceSequence;
+    resourcesGathered: ResourceSequence;
 }
 
-export interface ResourceGatheredSequence
+export interface ResourceSequence
 {
-    metal: any;
-    stone: any;
-    wood: any;
-    food: any;
+    metal: number[];
+    stone: number[];
+    wood: number[];
+    food: number[];
 }
+
+
