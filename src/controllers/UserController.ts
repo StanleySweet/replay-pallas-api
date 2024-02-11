@@ -320,8 +320,9 @@ const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastif
     }
 
     try {
+        const result_for_link = fastify.database.prepare('DELETE FROM replay_user_link WHERE user_id = @userId').run({ "userId": request.params.id });
         const result = fastify.database.prepare('DELETE FROM users WHERE id = @userId').run({ "userId": request.params.id });
-        reply.send(result);
+        reply.send([result_for_link,result]);
     }
     catch (err) {
         console.error(err);
@@ -497,10 +498,7 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
         schema: {
             params: zodToJsonSchema(z.object({ id: z.number() })),
             response: {
-                200: {
-                    type: 'null',
-                    description: 'No Content'
-                },
+                200: zodToJsonSchema(z.array(z.any())),
                 401: {
                     type: 'null',
                     description: 'Unauthorized'
