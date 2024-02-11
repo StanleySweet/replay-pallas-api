@@ -47,12 +47,30 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
     glicko_ranking = glicko_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     const currentDate = new Date();
-    const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
+    let formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
+    
+    let current_game_elo: number;
+    if (game_ranking.length) {
+        current_game_elo = game_ranking[game_ranking.length - 1].elo;
+    }
+    else {
+        current_game_elo = 1200;
+        game_ranking = [{ "elo": current_game_elo, date: formattedDate }];
+    }
+
+
+
+
     let current_glicko_elo : GlickoElo;
     if (glicko_ranking.length) {
         current_glicko_elo = glicko_ranking[glicko_ranking.length - 1];
     }
     else {
+        if (game_ranking.length) {
+            const currentDate = new Date(game_ranking[game_ranking.length - 1].date);
+            formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
+        }
+     
         current_glicko_elo = {
             elo: 1500,
             date: formattedDate,
@@ -63,14 +81,6 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
         glicko_ranking = [current_glicko_elo];
     }
 
-    let current_game_elo: number;
-    if (game_ranking.length) {
-        current_game_elo = game_ranking[game_ranking.length - 1].elo;
-    }
-    else {
-        current_game_elo = 1200;
-        game_ranking = [{ "elo": current_game_elo, date: formattedDate }];
-    }
 
     return {
         "current_game_elo" : current_game_elo,
