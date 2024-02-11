@@ -11,6 +11,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 const get_lobby_users = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -18,6 +19,7 @@ const get_lobby_users = (request: FastifyRequest, reply: FastifyReply, fastify: 
         const users: User[] = fastify.database.prepare('SELECT id, nick, 0 as role FROM lobby_players').all() as User[];
         if (!users || !users.length) {
             reply.code(204);
+            reply.send();
             return;
         }
 

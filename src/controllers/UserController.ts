@@ -84,6 +84,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     let user: UserDetail | undefined = fastify.database.prepare('SELECT id, nick, creation_date FROM lobby_players WHERE id=@id LIMIT 1').get({ "id": request.params.id }) as UserDetail;
     if (!user) {
         reply.code(204);
+        reply.send();
         return;
     }
 
@@ -127,6 +128,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
 const set_permission_for_user = (request: SetPermissionsRequest, reply: FastifyReply,  fastify: FastifyInstance): void  => {
     if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -166,6 +168,7 @@ const compute_statistics = (result: UserDetail, replays: Replays) => {
 const get_user_details_by_id = async (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -175,6 +178,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     const user: UserDetail | undefined = fastify.database.prepare('SELECT id, nick, role, creation_date FROM users WHERE id=@id LIMIT 1').get({ "id": request.params.id }) as UserDetail | undefined;
     if (!user) {
         reply.code(204);
+        reply.send();
         return;
     }
 
@@ -219,6 +223,7 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
         const users: User[] = fastify.database.prepare("SELECT id, nick, role FROM users WHERE email = @email and password = @password LIMIT 1").all({ "email": request.body.email, "password": request.body.password }) as User[];
         if (!users || !users.length) {
             reply.code(204);
+            reply.send();
             return;
         }
 
@@ -248,12 +253,14 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
     catch (err) {
         console.error(err);
         reply.code(400);
+        reply.send();
     }
 };
 
 const get_user_by_id = (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -269,12 +276,14 @@ const get_user_by_id = (request: GetUserByIdRequest, reply: FastifyReply, fastif
     catch (err) {
         console.error(err);
         reply.code(400);
+        reply.send();
     }
 };
 
 const get_latest_users = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -282,6 +291,7 @@ const get_latest_users = (request: FastifyRequest, reply: FastifyReply, fastify:
         const users: LatestUser[] = fastify.database.prepare('SELECT id, nick, role, creation_date FROM users ORDER BY modification_date DESC LIMIT 10').all() as LatestUser[];
         if (!users || !users.length) {
             reply.code(204);
+            reply.send();
             return;
         }
         reply.send(users);
@@ -289,12 +299,14 @@ const get_latest_users = (request: FastifyRequest, reply: FastifyReply, fastify:
     catch (err) {
         console.error(err);
         reply.code(400);
+        reply.send();
     }
 };
 
 const get_users = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -310,12 +322,14 @@ const get_users = (request: FastifyRequest, reply: FastifyReply, fastify: Fastif
     catch (err) {
         console.error(err);
         reply.code(400);
+        reply.send();
     }
 };
 
 const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -327,6 +341,7 @@ const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastif
     catch (err) {
         console.error(err);
         reply.code(400);
+        reply.send();
     }
 };
 
@@ -343,6 +358,9 @@ const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: Fast
     catch (err) {
         console.error(err);
         reply.code(400);
+    }
+    finally {
+        reply.send();
     }
 };
 

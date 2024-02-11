@@ -75,7 +75,8 @@ async function setupAuthent() {
 
         const token = request.headers.authorization?.replace("Bearer ", "") as string;
         if (!token) {
-            reply.code(401)
+            reply.code(401);
+            reply.send();
             return;
         }
 

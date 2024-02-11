@@ -86,6 +86,7 @@ const PallasGlickoRatingSchema = z.object({
 const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if (request.claims?.role  ?? 0 < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -95,6 +96,7 @@ const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastif
     catch (err) {
         console.error(err);
         reply.code(400);
+        reply.send();
     }
 };
 
@@ -103,6 +105,7 @@ const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastif
 const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -120,6 +123,7 @@ const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify
     catch (err) {
         console.error(err);
         reply.code(400);
+        reply.send();
     }
 };
 
@@ -138,6 +142,7 @@ function getAverageRatings(singleGamesRatings: number[]) {
 const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -195,6 +200,7 @@ const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyRepl
 const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -256,6 +262,7 @@ const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply:
 const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -292,6 +299,7 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
 const get_player_profile = async (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 

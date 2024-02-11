@@ -32,6 +32,7 @@ function get_list_items_from_local_ratings(matchIds : string[], reply: FastifyRe
 
     if (!replays || !replays.length) {
         reply.code(204);
+        reply.send();
         return;
     }
 
@@ -41,6 +42,7 @@ function get_list_items_from_local_ratings(matchIds : string[], reply: FastifyRe
 function get_latest_replays(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
     
@@ -52,6 +54,7 @@ function get_latest_replays(request: FastifyRequest, reply: FastifyReply, fastif
 function get_my_replays_list_items(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -63,6 +66,7 @@ function get_my_replays_list_items(request: FastifyRequest, reply: FastifyReply,
 function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -74,6 +78,7 @@ function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: F
 function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -191,6 +196,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
     fastify.glicko2Manager.rebuild();
 
     reply.code(200);
+    reply.send();
 }
 
 function extract_commands_data(text: string): ReplayMetaData | null | undefined {
@@ -258,11 +264,13 @@ function extract_commands_data(text: string): ReplayMetaData | null | undefined 
 const rebuild_glicko_rank_history = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
     fastify.glicko2Manager.rebuild();
     reply.code(200);
+    reply.send();
 };
 
 function padNumber(number: number) {
@@ -306,6 +314,7 @@ const get_ranks = (replays: Replays): LobbyRankingHistoryEntries => {
 const rebuild_lobby_rank_history = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(401);
+        reply.send();
         return;
     }
 
@@ -387,6 +396,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         if ((request.claims?.role ?? 0) < EUserRole.CONTRIBUTOR) {
             reply.code(401);
+            reply.send();
             return;
         }
 
@@ -509,6 +519,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
     }, async (request: GetMatchZipByIdRequest, reply: FastifyReply): Promise<void> => {
         if ((request.claims?.role ?? 0) < EUserRole.READER) {
             reply.code(403);
+            reply.send();
             return;
         }
 
@@ -551,6 +562,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
     }, async (request: GetMatchByIdRequest, reply: FastifyReply): Promise<void> => {
         if ((request.claims?.role ?? 0) < EUserRole.READER) {
             reply.code(403);
+            reply.send();
             return;
         }
 
@@ -616,6 +628,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
     }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         if ((request.claims?.role ?? 0) < EUserRole.READER) {
             reply.code(403);
+            reply.send();
             return;
         }
         const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays ORDER BY creation_date desc LIMIT 10;').all() as Replays;
@@ -664,6 +677,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
     }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         if ((request.claims?.role ?? 0) < EUserRole.READER) {
             reply.code(403);
+            reply.send();
             return;
         }
 
@@ -694,6 +708,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
     }, async (request: DeleteMyReplayRequest, reply: FastifyReply): Promise<void> => {
         if ((request.claims?.role ?? 0) < EUserRole.CONTRIBUTOR) {
             reply.code(403);
+            reply.send();
             return;
         }
 
@@ -715,6 +730,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         });
 
         reply.code(200);
+        reply.send();
     });
 
     server.get('/rebuild-replay-metadata', {
@@ -752,12 +768,14 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
     }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
         if ((request.claims?.role ?? 0) < EUserRole.READER) {
             reply.code(403);
+            reply.send();
             return;
         }
 
         const replays: Replays = server.database.prepare('SELECT r.match_id, metadata FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": request.claims?.id }) as Replays;
         if (!replays || !replays.length) {
             reply.code(204);
+            reply.send();
             return;
         }
 

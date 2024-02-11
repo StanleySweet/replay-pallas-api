@@ -4,6 +4,7 @@ import EUserRole from "../enumerations/EUserRole";
 const vacuum_database = (request: FastifyRequest, reply: FastifyReply, server: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(403);
+        reply.send();
         return;
     }
 
