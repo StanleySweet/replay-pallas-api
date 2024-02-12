@@ -94,7 +94,7 @@ const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastif
         reply.send(fastify.glicko2Manager.ratings);
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
         reply.send();
     }
@@ -121,7 +121,7 @@ const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify
         reply.send();
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
         reply.send();
     }

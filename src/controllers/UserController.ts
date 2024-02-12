@@ -269,7 +269,7 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
         reply.send(result);
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
         reply.send();
     }
@@ -292,7 +292,7 @@ const get_user_by_id = (request: GetUserByIdRequest, reply: FastifyReply, fastif
         reply.send(users[0]);
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
         reply.send();
     }
@@ -315,7 +315,7 @@ const get_latest_users = (request: FastifyRequest, reply: FastifyReply, fastify:
         reply.send(users);
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
         reply.send();
     }
@@ -338,7 +338,7 @@ const get_users = (request: FastifyRequest, reply: FastifyReply, fastify: Fastif
         reply.send(users);
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
         reply.send();
     }
@@ -357,7 +357,7 @@ const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastif
         reply.send([result_for_link,result]);
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
         reply.send();
     }
@@ -374,7 +374,7 @@ const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: Fast
         reply.code(201);
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
     }
     finally {

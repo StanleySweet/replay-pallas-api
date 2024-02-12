@@ -106,7 +106,7 @@ class LocalRatingsMinifier {
             if (replayKey === "scores") {
                 return replayObj.scores.map((_, playerIndex: number) =>
                     this.scoreKeys.map(scoreKey =>
-                        this.minifyNumber(replayObj[replayKey][playerIndex][scoreKey])
+                        this.minifyNumber(replayObj[replayKey][playerIndex][scoreKey] as unknown as number)
                     )
                 );
             }

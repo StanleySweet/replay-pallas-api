@@ -20,6 +20,7 @@ import { MetadataSettings } from "../types/MetadataSettings";
 import { LobbyRankingHistoryEntries, LobbyRankingHistoryEntriesSchema, LobbyRankingHistoryEntry } from "../types/LobbyRankingHistoryEntry";
 import { ReplayListItem, ReplayListItems, ReplayListItemsSchema } from "../types/ReplayListItem";
 import { LocalRatingsReplay } from "../local-ratings/Replay";
+import pino from 'pino';
 
 function get_list_items_from_local_ratings(matchIds: string[], reply: FastifyReply, fastify: FastifyInstance) {
     const replays: ReplayListItems = matchIds.map(matchId => fastify.replayDb.replayDatabase[matchId]).map((replay: LocalRatingsReplay) => ({
@@ -258,7 +259,7 @@ function extract_commands_data(text: string): ReplayMetaData | null | undefined 
         return data;
 
     } catch (error) {
-        console.error(error);
+        pino().error(error);
     }
 }
 
@@ -339,7 +340,7 @@ function UploadReplayToDatabase(replay: Replay, server: FastifyInstance): boolea
         server.database.prepare(`INSERT INTO replays (match_id, metadata, filedata, creation_date) VALUES($matchId, $metadata, $filedata, $creationDate)`).run(ToDbFormat(replay));
         return true;
     } catch (ex) {
-        console.error(ex);
+        server.log.error(ex);
         return false;
     }
 }

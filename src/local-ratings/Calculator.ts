@@ -27,7 +27,7 @@ class LocalRatingsCalculator {
         const playerIndex = replayObj.players.indexOf(player);
         const scores = replayObj.scores[playerIndex];
         const weights = new LocalRatingsWeights();
-        const score = Object.keys(scores).reduce((pv, cv) => pv + scores[cv] * weights[cv.toLowerCase()], 0);
+        const score = Object.keys(scores).reduce((pv, cv) => pv + (scores[cv] as unknown as number) * weights[cv.toLowerCase()], 0);
         return score;
     }
 

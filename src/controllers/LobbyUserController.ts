@@ -26,7 +26,7 @@ const get_lobby_users = (request: FastifyRequest, reply: FastifyReply, fastify: 
         reply.send(users);
     }
     catch (err) {
-        console.error(err);
+        fastify.log.error(err);
         reply.code(400);
     }
 };

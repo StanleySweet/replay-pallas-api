@@ -24,6 +24,8 @@ import { Glicko2Manager } from "./instant-glicko-2/Glicko2Manager";
 import { Task, SimpleIntervalJob } from "toad-scheduler";
 import fastifySchedulePlugin from "@fastify/schedule";
 import { HealthController } from "./controllers/HealthController";
+import pino from 'pino';
+
 const server = fastify({ logger: true });
 server.register(cors, {
     origin: '*', // Allowing requests from any origin
@@ -108,7 +110,7 @@ server.register(fastifySchedulePlugin);
 
 server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     if (err) {
-        console.error(err);
+        pino().error(err);
         process.exit(1);
     }
     sqlite3.verbose();
@@ -127,6 +129,10 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     const bdb = BetterDatabase("dist/cache/replay-pallas.sqlite3", { readonly: false });
     EngineInstance.SetDataBase(bdb);
     bdb.pragma('journal_mode = WAL');
+    bdb.pragma('synchronous = normal');
+    bdb.pragma('temp_store = memory');
+    bdb.pragma('mmap_size = 30000000000');
+    bdb.pragma('page_size = 32768');
 
     await server.ready();
     server.swagger();
@@ -147,6 +153,7 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
         () => { 
             server.glicko2Manager.rebuild() 
             server.ratingsDb.rebuild();
+            bdb.pragma('optimize');
         },
         (err) => { /* handle errors here */ }
     )

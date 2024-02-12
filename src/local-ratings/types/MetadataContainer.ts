@@ -117,7 +117,7 @@ export class LocalRatingsMetadataContainer {
                 const sequencesObj = new LocalRatingsSequences(sequences);
                 // Check if all keys are defined, otherwise return empty object
                 if (sequencesObj.validate()) {
-                    Object.keys(sequencesObj).forEach(x => sequencesObj[x] = getMean_LocalRatings(sequencesObj[x]));
+                    Object.keys(sequencesObj).forEach(x => sequencesObj[x] = getMean_LocalRatings(sequencesObj[x] as number []));
                     return sequencesObj;
                 }
             }
