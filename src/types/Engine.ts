@@ -27,15 +27,12 @@ class Engine {
             return [];
 
         const replays = this.database.prepare('Select metadata as attribs, match_id as directory  From replays;').all() as LocalRatingsMetadataContainer[];
-        for (const element of replays) {
-            element.attribs = JSON.parse(uncompressSync(element.attribs as string, { asBuffer: false }) as string);
-        }
 
         for (let i = 0; i < replays.length; ++i) {
-            const prevElem = replays[i];
+            const element = replays[i];
             replays[i] = new LocalRatingsMetadataContainer();
-            replays[i].attribs = prevElem.attribs;
-            replays[i].directory = prevElem.directory;
+            replays[i].attribs = JSON.parse(uncompressSync(element.attribs as string, { asBuffer: false }) as string);
+            replays[i].directory = element.directory;
         }
 
         return replays;
