@@ -76,6 +76,7 @@ function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: F
     get_list_items_from_local_ratings(matchIds, reply, fastify);
 }
 
+const BATCH_SIZE = 50;
 
 function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
@@ -83,114 +84,136 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
         reply.send();
         return;
     }
+    let offset = 0;
+    let hasMoreData = true;
 
-    const replays: Replays = fastify.database.prepare("Select * From replays r;").all() as Replays;
-    for (const replay of replays) {
-        if (Buffer.isBuffer(replay.metadata))
-            replay.metadata = JSON.parse(snappy.uncompressSync(replay.metadata, { asBuffer: false }) as string);
-        if (Buffer.isBuffer(replay.filedata))
-            replay.filedata = snappy.uncompressSync(replay.filedata, { asBuffer: false }) as string;
+    const { count } = fastify.database.prepare('Select Count(*) as count From replays;').get() as { count: number };
 
-        const commandsData = extract_commands_data(replay.filedata);
-        replay.metadata = Object.assign(replay.metadata, commandsData);
-    }
+    while (hasMoreData) {
 
-    const mpNames = replays.map(replay => {
-        const names: string[] = [];
-        if (replay.metadata.settings && replay.metadata.settings.PlayerData) {
-            for (const nameWithoutRating of replay.metadata.settings.PlayerData.map(a => a.NameWithoutRating))
-                if (nameWithoutRating)
-                    names.push(nameWithoutRating);
+        const replays: Replays = fastify.database.prepare(`
+        SELECT * FROM replays r
+        LIMIT ${BATCH_SIZE} OFFSET ${offset};`
+        ).all() as Replays;
+
+        // Check if there's no more data
+        if (replays.length === 0) {
+            hasMoreData = false;
+            break;
         }
 
-        return {
-            "match_id": replay.metadata.matchID,
-            "player_names": names
-        };
-    });
+        pino().info(`Rebuilding replays metadata. Treating replay ${offset} to ${offset + replays.length} of ${count} replays.`);
 
-    const names = new Set<{ name: string, matchId: string }>();
-    for (const nameArray of mpNames) {
-        if (!nameArray.player_names || !nameArray.player_names.length || !nameArray.match_id)
-            continue;
+        for (const replay of replays) {
+            if (Buffer.isBuffer(replay.metadata))
+                replay.metadata = JSON.parse(snappy.uncompressSync(replay.metadata, { asBuffer: false }) as string);
+            if (Buffer.isBuffer(replay.filedata))
+                replay.filedata = snappy.uncompressSync(replay.filedata, { asBuffer: false }) as string;
 
-        for (const name of nameArray.player_names) {
-            names.add({
-                "matchId": nameArray.match_id,
-                "name": name
-            });
-        }
-    }
-
-    const userMap = new Map<string, number>();
-    for (const name of names) {
-        let existingUser: { id: number } = fastify.database.prepare("Select id From lobby_players where nick = @nick  LIMIT 1;").get({ "nick": name.name }) as { id: number };
-        if (!existingUser) {
-            fastify.database.prepare("Insert Into lobby_players (nick) Values (@nick)").run({ "nick": name.name });
-            existingUser = fastify.database.prepare("Select id From lobby_players where nick = @nick LIMIT 1;").get({ "nick": name.name }) as { id: number };
+            const commandsData = extract_commands_data(replay.filedata);
+            replay.metadata = Object.assign(replay.metadata, commandsData);
         }
 
-        userMap.set(name.name, existingUser.id);
-    }
+        const mpNames = replays.map(replay => {
+            const names: string[] = [];
+            if (replay.metadata.settings && replay.metadata.settings.PlayerData) {
+                for (const nameWithoutRating of replay.metadata.settings.PlayerData.map(a => a.NameWithoutRating))
+                    if (nameWithoutRating)
+                        names.push(nameWithoutRating);
+            }
 
-    for (const replay of replays) {
-        const metadataSettings: MetadataSettings = replay.metadata.settings as MetadataSettings;
-        if (!metadataSettings || !metadataSettings.PlayerData)
-            continue;
+            return {
+                "match_id": replay.metadata.matchID,
+                "player_names": names
+            };
+        });
 
-        for (const player of metadataSettings.PlayerData) {
-            if (!player)
+        const names = new Set<{ name: string, matchId: string }>();
+        for (const nameArray of mpNames) {
+            if (!nameArray.player_names || !nameArray.player_names.length || !nameArray.match_id)
                 continue;
 
-            player.LobbyUserId = userMap.get(player.NameWithoutRating || "") ?? 0;
-            if (replay.metadata.playerStates?.length) {
-
-                const index = metadataSettings.PlayerData.indexOf(player) + 1;
-                if (index > replay.metadata.playerStates.length - 1 || !replay.metadata.playerStates[index])
-                    continue;
-
-                player.State = replay.metadata.playerStates[index].state;
+            for (const name of nameArray.player_names) {
+                names.add({
+                    "matchId": nameArray.match_id,
+                    "name": name
+                });
             }
         }
-    }
 
-    const updateStatement = fastify.database.prepare(`
+        const userMap = new Map<string, number>();
+        for (const name of names) {
+            let existingUser: { id: number } = fastify.database.prepare("Select id From lobby_players where nick = @nick  LIMIT 1;").get({ "nick": name.name }) as { id: number };
+            if (!existingUser) {
+                fastify.database.prepare("Insert Into lobby_players (nick) Values (@nick)").run({ "nick": name.name });
+                existingUser = fastify.database.prepare("Select id From lobby_players where nick = @nick LIMIT 1;").get({ "nick": name.name }) as { id: number };
+            }
+
+            userMap.set(name.name, existingUser.id);
+        }
+
+        for (const replay of replays) {
+            const metadataSettings: MetadataSettings = replay.metadata.settings as MetadataSettings;
+            if (!metadataSettings || !metadataSettings.PlayerData)
+                continue;
+
+            for (const player of metadataSettings.PlayerData) {
+                if (!player)
+                    continue;
+
+                player.LobbyUserId = userMap.get(player.NameWithoutRating || "") ?? 0;
+                if (replay.metadata.playerStates?.length) {
+
+                    const index = metadataSettings.PlayerData.indexOf(player) + 1;
+                    if (index > replay.metadata.playerStates.length - 1 || !replay.metadata.playerStates[index])
+                        continue;
+
+                    player.State = replay.metadata.playerStates[index].state;
+                }
+            }
+        }
+
+        const updateStatement = fastify.database.prepare(`
     Update replays 
     Set 
     modification_date = @modification_date, 
     metadata = @metadata 
     Where match_id = @match_id;`);
-    for (const replay of replays) {
-        if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a)) {
-            const currentDate = new Date();
-            const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
-            updateStatement.run({
-                match_id: replay.metadata.matchID,
-                metadata: snappy.compressSync(JSON.stringify(replay.metadata)),
-                modification_date: formattedDate
+        for (const replay of replays) {
+            if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a)) {
+                const currentDate = new Date();
+                const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
+                updateStatement.run({
+                    match_id: replay.metadata.matchID,
+                    metadata: snappy.compressSync(JSON.stringify(replay.metadata)),
+                    modification_date: formattedDate
+                });
+            }
+        }
+
+        fastify.database.prepare('Delete From replay_lobby_player_link;').run();
+        for (const name of names) {
+            const existingUser_id = userMap.get(name.name);
+            const existingLink = fastify.database.prepare("Select 1 From replay_lobby_player_link where match_id = @matchId and lobby_player_id = @lobby_player_id;").get({ "matchId": name.matchId, "lobby_player_id": existingUser_id });
+            if (!existingLink) {
+                fastify.database.prepare("Insert Into replay_lobby_player_link (lobby_player_id, match_id) Values (@lobby_player_id, @matchId);").run({ "lobby_player_id": existingUser_id, "matchId": name.matchId });
+            }
+        }
+
+        fastify.database.prepare("Delete From lobby_ranking_history;").run();
+        const ranks = get_ranks(replays);
+        const insertStatement = fastify.database.prepare('Insert Into lobby_ranking_history (match_id, lobby_player_id, elo, date) Values (@match_id, @lobby_player_id, @elo, @date)');
+        for (const rank of ranks) {
+            insertStatement.run({
+                "match_id": rank.match_id,
+                "elo": rank.elo,
+                "lobby_player_id": rank.lobby_player_id,
+                "date": rank.date
             });
         }
-    }
 
-    fastify.database.prepare('Delete From replay_lobby_player_link;').run();
-    for (const name of names) {
-        const existingUser_id = userMap.get(name.name);
-        const existingLink = fastify.database.prepare("Select 1 From replay_lobby_player_link where match_id = @matchId and lobby_player_id = @lobby_player_id;").get({ "matchId": name.matchId, "lobby_player_id": existingUser_id });
-        if (!existingLink) {
-            fastify.database.prepare("Insert Into replay_lobby_player_link (lobby_player_id, match_id) Values (@lobby_player_id, @matchId);").run({ "lobby_player_id": existingUser_id, "matchId": name.matchId });
-        }
-    }
-
-    fastify.database.prepare("Delete From lobby_ranking_history;").run();
-    const ranks = get_ranks(replays);
-    const insertStatement = fastify.database.prepare('Insert Into lobby_ranking_history (match_id, lobby_player_id, elo, date) Values (@match_id, @lobby_player_id, @elo, @date)');
-    for (const rank of ranks) {
-        insertStatement.run({
-            "match_id": rank.match_id,
-            "elo": rank.elo,
-            "lobby_player_id": rank.lobby_player_id,
-            "date": rank.date
-        });
+        // Update offset for the next batch
+        offset += BATCH_SIZE;
     }
 
     fastify.replayDb.rebuild();
