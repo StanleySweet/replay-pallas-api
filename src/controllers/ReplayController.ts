@@ -531,20 +531,20 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const files: Replays = server.database.prepare('SELECT match_id, filedata FROM replays WHERE match_id = @matchId LIMIT 1').all({ "matchId": matchId }) as Replays;
-        if (!files.length) {
+        const file : Replay = server.database.prepare('SELECT match_id, filedata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as Replay;
+        if (!file) {
             reply.send(null);
             return;
         }
 
-        const fileJson = JSON.parse(await snappy.uncompress(files[0].filedata, { asBuffer: false }) as string);
+        const fileJson = JSON.parse(await snappy.uncompress(file.filedata, { asBuffer: false }) as string);
 
         const zip = new AdmZip();
         for (const file of Object.keys(fileJson))
             zip.addFile(file, Buffer.from(typeof (fileJson[file]) === "string" ? fileJson[file] : JSON.stringify(fileJson[file]), 'utf8'), '', 0o644);
         reply.header(
             'Content-Disposition',
-            `attachment; filename=${files[0].match_id}.zip`);
+            `attachment; filename=${file.match_id}.zip`);
         reply.type('application/zip').send(zip.toBuffer());
     });
 
@@ -574,11 +574,9 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays WHERE match_id = @matchId LIMIT 1').all({ "matchId": matchId }) as Replays;
-        for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
-
-        reply.send(replays.length ? replays[0] : null);
+        const replay: Replay = server.database.prepare('SELECT match_id, metadata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as Replay;
+        replay.metadata = JSON.parse(await snappy.uncompress(replay.metadata as string, { asBuffer: false }) as string);
+        reply.send(replay ? replay : null);
     });
 
 

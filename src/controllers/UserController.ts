@@ -283,13 +283,13 @@ const get_user_by_id = (request: GetUserByIdRequest, reply: FastifyReply, fastif
     }
 
     try {
-        const users: User[] = fastify.database.prepare('SELECT id, nick, role FROM users WHERE id = @id LIMIT 1').all({ "id": request.params.id }) as User[];
-        if (!users || !users.length) {
+        const user: User = fastify.database.prepare('SELECT id, nick, role FROM users WHERE id = @id LIMIT 1').get({ "id": request.params.id }) as User;
+        if (!user) {
             reply.code(204);
             return;
         }
 
-        reply.send(users[0]);
+        reply.send(user);
     }
     catch (err) {
         fastify.log.error(err);
