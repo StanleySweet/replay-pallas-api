@@ -9,6 +9,7 @@ import { LocalRatingsReplayDB } from '../ReplayDB';
 import { LocalRatingsRatingsDB } from '../RatingsDB';
 import { LocalRatingsAliasManager } from '../Alias';
 import { LocalRatingsMinifier } from '../Minifier';
+import { LocalRatingsReplayDatabase } from '../types/ReplayDatabase';
 
 /**
  * Convert a number to a string with two decimal digits
@@ -122,9 +123,9 @@ function init_LocalRatings() : LocalRatingsState {
 
 function update_LocalRatings(state: LocalRatingsState)
 {
-    state.replayDb.update();
+    const newReplayDatabase : LocalRatingsReplayDatabase = state.replayDb.update();
     state.ratingsDb.load();
-    state.ratingsDb.merge(state.replayDb.newReplays);
+    state.ratingsDb.merge(newReplayDatabase);
     state.ratingsDb.save();
 
     state.aliasDb.merge(state.ratingsDb.ratingsDatabase, undefined);

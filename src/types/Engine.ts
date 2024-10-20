@@ -10,11 +10,11 @@ class Engine {
         if (!this.database)
             return {} as ReplayMetaData;
 
-        const replay = this.database.prepare('Select metadata as attribs From replays where match_id = @match_id LIMIT 1;').get({ "match_id" : directory}) as LocalRatingsMetadataContainer;
+        const replay = this.database.prepare('Select metadata as attribs From replays where match_id = @match_id LIMIT 1;').get({ "match_id": directory }) as LocalRatingsMetadataContainer;
         return JSON.parse(uncompressSync(replay.attribs as string, { asBuffer: false }) as string) as ReplayMetaData;
     }
     ConfigDB_RemoveValue(section: string, key: string) {
-        if(!this.database)
+        if (!this.database)
             return;
 
         this.database.prepare('Delete From local_ratings_configuration where section = @section and key = @key').run({
@@ -22,11 +22,8 @@ class Engine {
             "key": key,
         });
     }
-    GetReplays(): LocalRatingsMetadataContainer[] {
-        if (!this.database)
-            return [];
 
-        const replays = this.database.prepare('Select metadata as attribs, match_id as directory  From replays;').all() as LocalRatingsMetadataContainer[];
+    ParseReplays(replays: LocalRatingsMetadataContainer[]){
 
         for (let i = 0; i < replays.length; ++i) {
             const element = replays[i];
@@ -38,10 +35,46 @@ class Engine {
         return replays;
     }
 
+    GetNewReplays(existingIds: string[], batchSize: number, offset: number): LocalRatingsMetadataContainer[] {
+        if (!this.database)
+            return [];
+
+        // Convert existingIds array to a comma-separated string for SQL query
+        const idsString = existingIds.map(id => `'${id}'`).join(',');
+
+        // Adjust the SQL query to include LIMIT and OFFSET
+        const query = `
+            SELECT metadata as attribs, match_id as directory 
+            FROM replays 
+            WHERE match_id NOT IN (${idsString}) 
+            LIMIT ${batchSize} 
+            OFFSET ${offset};
+        `;
+
+        const replays = this.database.prepare(query).all() as LocalRatingsMetadataContainer[];
+        return this.ParseReplays(replays);  
+    }
+
+    GetReplays(batchSize: number, offset: number): LocalRatingsMetadataContainer[] {
+        if (!this.database)
+            return [];
+
+        // Adjust the SQL query to include LIMIT and OFFSET
+        const query = `
+            SELECT metadata as attribs, match_id as directory 
+            FROM replays 
+            LIMIT ${batchSize} 
+            OFFSET ${offset};
+        `;
+        
+        const replays = this.database.prepare(query).all() as LocalRatingsMetadataContainer[];
+        return this.ParseReplays(replays);  
+    }
+
     WriteJSONFile(x: string, data: unknown): void {
         const path = Path.dirname(x);
-        if (!existsSync(path)){
-            mkdirSync(path, {recursive : true});
+        if (!existsSync(path)) {
+            mkdirSync(path, { recursive: true });
         }
 
         return writeFileSync(x, JSON.stringify(data), {

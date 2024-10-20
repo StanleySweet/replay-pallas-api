@@ -2,7 +2,6 @@ import { LocalRatingsCache } from "./Cache";
 import { LocalRatingsMinifier } from "./Minifier";
 import { EngineInstance as Engine } from "../types/Engine";
 import { LocalRatingsReplay } from "./Replay";
-import { LocalRatingsMetadataContainer } from "./types/MetadataContainer";
 import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
 import pino from 'pino';
 import { LocalRatingsMinifiedRatingDatabase } from "./types/RatingDatabase";
@@ -12,29 +11,14 @@ import { LocalRatingsMinifiedRatingDatabase } from "./types/RatingDatabase";
  */
 class LocalRatingsReplayDB {
     replayDatabase: LocalRatingsReplayDatabase;
-    newReplays: LocalRatingsReplayDatabase;
     cache: LocalRatingsCache;
     minifier: LocalRatingsMinifier;
-    constructor(cache : LocalRatingsCache, minifier : LocalRatingsMinifier) {
+    batchSize: number;
+    constructor(cache: LocalRatingsCache, minifier: LocalRatingsMinifier) {
         this.replayDatabase = {} as LocalRatingsReplayDatabase;
-        this.newReplays = {} as LocalRatingsReplayDatabase;
         this.cache = cache;
         this.minifier = minifier;
-    }
-
-    addReplays(replaySet : LocalRatingsMetadataContainer[], database : LocalRatingsReplayDatabase) {
-        let count = 0;
-
-        for (const replay of replaySet) {
-            const replayObj = new LocalRatingsReplay(replay);
-            if (replayObj.isValid)
-            {
-                ++count;
-                database[replay.directory] = replayObj;
-            }
-        }
-
-        pino().info(`Adding ${count} new replay(s) to the replay database.`);
+        this.batchSize = 50;
     }
 
     isEmpty() {
@@ -50,31 +34,69 @@ class LocalRatingsReplayDB {
         this.cache.save("replayDatabase", this.minifier.minifyReplayDatabase(this.replayDatabase));
     }
 
+    delete(matchId: string) {
+        if (matchId in this.replayDatabase) {
+            delete this.replayDatabase[matchId];
+            this.save();
+        }
+    }
+
     rebuild() {
-        this.addReplays(Engine.GetReplays(), this.replayDatabase);
+        let count = 0;
+        let offset = 0;
+        let hasMoreData = true;
+        while (hasMoreData) {
+            const replays = Engine.GetReplays(this.batchSize, offset);
+            offset += replays.length;
+            if (replays.length === 0) {
+                hasMoreData = false;
+                break;
+            }
+
+            for (const replay of replays) {
+                const replayObj = new LocalRatingsReplay(replay);
+                if (replayObj.isValid) {
+                    ++count;
+                    this.replayDatabase[replay.directory] = replayObj;
+                }
+            }
+        }
+
+        pino().info(`Found ${offset} replays. Added ${count} valid new replay(s) to the replay database.`);
         this.cache.updateVersion();
         this.save();
     }
 
-    update() {
+    update(): LocalRatingsReplayDatabase {
         this.load();
+        let count = 0;
+        let offset = 0;
+        let hasMoreData = true;
+        const currentKeys = Object.keys(this.replayDatabase);
+        const newReplayDatabase = {} as LocalRatingsReplayDatabase;
+        while (hasMoreData) {
+            const replays = Engine.GetNewReplays(currentKeys, this.batchSize, offset);
+            offset += replays.length;
+            if (replays.length === 0) {
+                hasMoreData = false;
+                break;
+            }
 
-        // Update the replay database with new replays
-        const unScanned = Engine.GetReplays().filter((x: LocalRatingsMetadataContainer) => !(x.directory in this.replayDatabase));
+            for (const replay of replays) {
+                const replayObj = new LocalRatingsReplay(replay);
+                if (replayObj.isValid) {
+                    ++count;
+                    this.replayDatabase[replay.directory] = replayObj;
+                    newReplayDatabase[replay.directory] = replayObj;
+                }
+            }
+        }
 
-        if (unScanned.length == 0)
-            return;
-
-        pino().info(`Updating the replay database ${unScanned.length} replay(s) will be processed.`);
-
-        // Add new replays
-        this.addReplays(unScanned, this.newReplays);
-        Object.assign(this.replayDatabase, this.newReplays);
-
-        // Save
+        pino().info(`Found ${offset} new replays. Added ${count} valid new replay(s) to the replay database.`);
         this.save();
-    }
 
+        return newReplayDatabase;
+    }
 }
 
 
