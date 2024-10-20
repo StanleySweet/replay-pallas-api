@@ -88,6 +88,9 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
     let hasMoreData = true;
 
     const { count } = fastify.database.prepare('Select Count(*) as count From replays;').get() as { count: number };
+    
+    fastify.database.prepare('Delete From replay_lobby_player_link;').run();
+    fastify.database.prepare("Delete From lobby_ranking_history;").run(); 
 
     while (hasMoreData) {
 
@@ -191,16 +194,14 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
             }
         }
 
-        fastify.database.prepare('Delete From replay_lobby_player_link;').run();
         for (const name of names) {
             const existingUser_id = userMap.get(name.name);
-            const existingLink = fastify.database.prepare("Select 1 From replay_lobby_player_link where match_id = @matchId and lobby_player_id = @lobby_player_id;").get({ "matchId": name.matchId, "lobby_player_id": existingUser_id });
+            const existingLink = fastify.database.prepare("Select 1 From replay_lobby_player_link where match_id = @matchId and lobby_player_id = @lobby_player_id LIMIT 1;").get({ "matchId": name.matchId, "lobby_player_id": existingUser_id });
             if (!existingLink) {
                 fastify.database.prepare("Insert Into replay_lobby_player_link (lobby_player_id, match_id) Values (@lobby_player_id, @matchId);").run({ "lobby_player_id": existingUser_id, "matchId": name.matchId });
             }
         }
 
-        fastify.database.prepare("Delete From lobby_ranking_history;").run();
         const ranks = get_ranks(replays);
         const insertStatement = fastify.database.prepare('Insert Into lobby_ranking_history (match_id, lobby_player_id, elo, date) Values (@match_id, @lobby_player_id, @elo, @date)');
         for (const rank of ranks) {
@@ -499,7 +500,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         for (const name of names) {
             const existingUser_id = userMap.get(name.name);
-            const existingLink = server.database.prepare("Select 1 From replay_lobby_player_link where match_id = @matchId and lobby_player_id = @lobby_player_id;").get({ "matchId": name.matchId, "lobby_player_id": existingUser_id });
+            const existingLink = server.database.prepare("Select 1 From replay_lobby_player_link where match_id = @matchId and lobby_player_id = @lobby_player_id LIMIT 1;").get({ "matchId": name.matchId, "lobby_player_id": existingUser_id });
             if (!existingLink) {
                 server.database.prepare("Insert Into replay_lobby_player_link (lobby_player_id, match_id) Values (@lobby_player_id, @matchId);").run({ "lobby_player_id": existingUser_id, "matchId": name.matchId });
             }

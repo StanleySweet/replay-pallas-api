@@ -121,7 +121,7 @@ class Glicko2Manager {
             }
         }
 
-        pino().info(`Rebuilding the glicko2 database. ${Array.from(players.keys()).length} ratings(s) were added for ${playersIds.size} player(s).`);
+        pino().info(`The glicko2 database has been rebuilt. ${this.ratings.length} ratings(s) were found for ${playersIds.size} player(s).`);
     }
 
     rebuild(): void {
@@ -130,7 +130,8 @@ class Glicko2Manager {
         try {
             this.rebuilding = true;
             this.database.prepare('Delete From glicko2_rankings;').run();
-            const replays: Replays = this.database.prepare('Select r.metadata, r.creation_date From replays r Where 2 = (Select Count(*) From replay_lobby_player_link lp Where lp.match_id = r.match_id ) Order by r.creation_date ASC;').all() as Replays;
+            const replays: Replays = this.database.prepare('Select r.metadata, r.creation_date From replays r Where 2 = (Select Count(*) From replay_lobby_player_link lp Where lp.match_id = r.match_id LIMIT 1) Order by r.creation_date ASC;').all() as Replays;
+            pino().info(`Rebuilding the glicko2 database. ${replays.length} replays(s) were found.`);
             this.ratings = [];
             this.process_replays(replays);
             this.save();
