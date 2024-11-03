@@ -34,7 +34,7 @@ const PlayerProfileSchema = z.object({
     "performanceStandardDeviationText": z.string(),
 });
 
-const SeriesDataSchema  = z.object({
+const SeriesDataSchema = z.object({
     x: z.number(),
     y: z.number(),
 });
@@ -79,12 +79,12 @@ const PallasGlickoRatingSchema = z.object({
     "deviation": z.number(),
     "volatility": z.number(),
     "lobby_player_id": z.number(),
-    "preview_deviation":z.number(),
+    "preview_deviation": z.number(),
 });
 
 
 const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
-    if (request.claims?.role  ?? 0 < EUserRole.READER) {
+    if (request.claims?.role ?? 0 < EUserRole.READER) {
         reply.code(401);
         reply.send();
         return;
@@ -102,7 +102,7 @@ const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastif
 
 
 
-const rebuild_database  = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+const rebuild_database = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(401);
         reply.send();
@@ -151,43 +151,39 @@ const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyRepl
     const historyDatabase = fastify.ratingsDb.historyDatabase;
     const playerData = historyDatabase[player];
 
-    const getCivSingleGamesRatings = (civ : string) => {
+    const getCivSingleGamesRatings = (civ: string) => {
         return Object.keys(playerData).filter(x => playerData[x].civ == civ).map(x => playerData[x].rating);
     };
 
-    const get_civ_rating = (civ:string) : number =>
-    {
+    const get_civ_rating = (civ: string): number => {
         const singleGamesRatings = getCivSingleGamesRatings(civ);
         if (singleGamesRatings.length == 0)
             return 0;
         return getMean_LocalRatings(singleGamesRatings);
     };
 
-    const get_current_rating = () =>
-    {
+    const get_current_rating = () => {
         const singleGamesRatings = Object.keys(playerData).map(x => playerData[x].rating);
         return getMean_LocalRatings(singleGamesRatings);
     };
 
-    const get_civ_matches = (civ: string) =>
-    {
+    const get_civ_matches = (civ: string) => {
         return getCivSingleGamesRatings(civ).length;
     };
 
-    const get_civ_advantage = (civRating : number | undefined, currentRating : number) =>
-    {
+    const get_civ_advantage = (civRating: number | undefined, currentRating: number) => {
         if (civRating === undefined)
             return 0;
         return civRating - currentRating;
     };
 
-    const civs : Civilizations = fastify.database.prepare("Select key from civilizations;").all() as Civilizations;
+    const civs: Civilizations = fastify.database.prepare("Select key from civilizations;").all() as Civilizations;
     const currentRating = get_current_rating();
     const civRatings = civs.map(x => get_civ_rating(x.key));
     const civMatches = civs.map(x => get_civ_matches(x.key));
     const advantages = civRatings.map(x => get_civ_advantage(x, currentRating));
 
-    const data : CivilizationChartData = {
+    const data: CivilizationChartData = {
         "civKeys": civs.map(a => a.key),
         "civRatings": civRatings,
         "civMatches": civMatches,
@@ -216,8 +212,8 @@ const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply:
     const currentRating = averageRatings[dataSize - 1];
     const configOptions = new LocalRatingsEvolutionChartOptions();
 
-    const data : EvolutionChartData = {
-        series : [],
+    const data: EvolutionChartData = {
+        series: [],
         colors: [],
         legends: []
     };
@@ -234,25 +230,25 @@ const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply:
         const currentRatingDataSet = (dataSize == 1) ?
             [{ "x": 0, "y": currentRating * 100 }, { "x": 1, "y": currentRating * 100 }] :
             [{ "x": 1, "y": currentRating * 100 }, { "x": dataSize, "y": currentRating * 100 }];
-            data.series.push(currentRatingDataSet);
-            data.colors.push(configOptions.colorcurrent);
-            data.legends.push("EvolutionChart.CurrentRatingLegend");
+        data.series.push(currentRatingDataSet);
+        data.colors.push(configOptions.colorcurrent);
+        data.legends.push("EvolutionChart.CurrentRatingLegend");
     }
     if (configOptions.showevolution) {
         const averageRatingsDataSet = (dataSize == 1) ?
             [{ "x": 0, "y": currentRating * 100 }, { "x": 1, "y": currentRating * 100 }] :
             averageRatings.map((y, i) => ({ "x": i + 1, "y": y * 100 }));
-            data.series.push(averageRatingsDataSet);
-            data.colors.push(configOptions.colorevolution);
-            data.legends.push("EvolutionChart.RatingEvolutionLegend");
+        data.series.push(averageRatingsDataSet);
+        data.colors.push(configOptions.colorevolution);
+        data.legends.push("EvolutionChart.RatingEvolutionLegend");
     }
     if (configOptions.showperformance) {
         const singleGamesRatingsDataSet = (dataSize == 1) ?
             [{ "x": 0, "y": currentRating * 100 }, { "x": 1, "y": currentRating * 100 }] :
             singleGamesRatings.map((y, i) => ({ "x": i + 1, "y": y * 100 }));
-            data.series.push(singleGamesRatingsDataSet);
-            data.colors.push(configOptions.colorperformance);
-            data.legends.push("EvolutionChart.PerformanceOverTimeLegend");
+        data.series.push(singleGamesRatingsDataSet);
+        data.colors.push(configOptions.colorperformance);
+        data.legends.push("EvolutionChart.PerformanceOverTimeLegend");
     }
 
     reply.send(data);

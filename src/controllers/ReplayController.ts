@@ -88,9 +88,9 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
     let hasMoreData = true;
 
     const { count } = fastify.database.prepare('Select Count(*) as count From replays;').get() as { count: number };
-    
+
     fastify.database.prepare('Delete From replay_lobby_player_link;').run();
-    fastify.database.prepare("Delete From lobby_ranking_history;").run(); 
+    fastify.database.prepare("Delete From lobby_ranking_history;").run();
 
     while (hasMoreData) {
 
@@ -555,7 +555,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const file : Replay = server.database.prepare('SELECT match_id, filedata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as Replay;
+        const file: Replay = server.database.prepare('SELECT match_id, filedata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as Replay;
         if (!file) {
             reply.send(null);
             return;

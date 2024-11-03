@@ -23,12 +23,12 @@ function padNumber(number: number) {
 
 const avg = (array: number[]) => array.reduce((a, b) => a + b) / array.length;
 
-const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGraph => {
+const get_chart_data = (fastify: FastifyInstance, lobby_user: number): EloGraph => {
 
-    function avg_rating(singleGamesRatings: { "elo": number, "date": string }[]) : { "elo": number, "date": string }[] {
+    function avg_rating(singleGamesRatings: { "elo": number, "date": string }[]): { "elo": number, "date": string }[] {
         const singleGamesRatingsSum = [singleGamesRatings[0]];
         for (let i = 1; i < singleGamesRatings.length; i++)
-            singleGamesRatingsSum.push({ "elo" : singleGamesRatingsSum[i - 1].elo + singleGamesRatings[i].elo, "date": singleGamesRatings[i].date});
+            singleGamesRatingsSum.push({ "elo": singleGamesRatingsSum[i - 1].elo + singleGamesRatings[i].elo, "date": singleGamesRatings[i].date });
         return singleGamesRatingsSum.map((x, i) => {
             x.elo = x.elo / (i + 1);
             return x;
@@ -43,12 +43,12 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
         "lobby_player_id": lobby_user,
     }) as GlickoElo[];
 
-    game_ranking = game_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    glicko_ranking = glicko_ranking.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    game_ranking = game_ranking.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    glicko_ranking = glicko_ranking.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     const currentDate = new Date();
     let formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
-    
+
     let current_game_elo: number;
     if (game_ranking.length) {
         current_game_elo = game_ranking[game_ranking.length - 1].elo;
@@ -61,7 +61,7 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
 
 
 
-    let current_glicko_elo : GlickoElo;
+    let current_glicko_elo: GlickoElo;
     if (glicko_ranking.length) {
         current_glicko_elo = glicko_ranking[glicko_ranking.length - 1];
     }
@@ -70,7 +70,7 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
             const currentDate = new Date(game_ranking[game_ranking.length - 1].date);
             formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
         }
-     
+
         current_glicko_elo = {
             elo: 1500,
             date: formattedDate,
@@ -83,10 +83,10 @@ const get_chart_data =  (fastify: FastifyInstance, lobby_user : number) : EloGra
 
 
     return {
-        "current_game_elo" : current_game_elo,
-        "current_glicko_elo" : current_glicko_elo,
+        "current_game_elo": current_game_elo,
+        "current_glicko_elo": current_glicko_elo,
         "glicko_series": glicko_ranking.map((y) => ({ "x": y.date, "y": y.elo })),
-        "glicko_series_avg": avg_rating(glicko_ranking.map(b => { return { elo: b.elo, date: b.date};})).map((y) => ({ "x": y.date, "y": y.elo })),
+        "glicko_series_avg": avg_rating(glicko_ranking.map(b => { return { elo: b.elo, date: b.date }; })).map((y) => ({ "x": y.date, "y": y.elo })),
         "game_series": game_ranking.map((y) => ({ "x": y.date, "y": y.elo })),
         "game_series_avg": avg_rating(game_ranking).map((y) => ({ "x": y.date, "y": y.elo }))
     };
@@ -135,7 +135,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
         "civs": replay.civs
     } as ReplayListItem));
 
-    
+
     for (const element of replays)
         element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
 
@@ -143,7 +143,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     reply.send(result);
 };
 
-const set_permission_for_user = (request: SetPermissionsRequest, reply: FastifyReply,  fastify: FastifyInstance): void  => {
+const set_permission_for_user = (request: SetPermissionsRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if (request.claims?.role !== EUserRole.ADMINISTRATOR) {
         reply.code(401);
         reply.send();
@@ -190,7 +190,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
         return;
     }
 
-    
+
     let result: UserDetail = {} as UserDetail;
 
     const user: UserDetail | undefined = fastify.database.prepare('SELECT id, nick, role, creation_date FROM users WHERE id=@id LIMIT 1').get({ "id": request.params.id }) as UserDetail | undefined;
@@ -200,7 +200,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
         return;
     }
 
-    const lobby_user : User = fastify.database.prepare(`
+    const lobby_user: User = fastify.database.prepare(`
     Select lp.id From users u
     Inner Join lobby_players lp
     On lp.nick = u.nick  Where u.id = @id`).get({ "id": request.params.id }) as User;
@@ -245,7 +245,7 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
             return;
         }
 
-        const payload : PallasTokenPayload = {
+        const payload: PallasTokenPayload = {
             'role': users[0].role,
             'nick': users[0].nick,
             'id': users[0].id
@@ -354,7 +354,7 @@ const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastif
     try {
         const result_for_link = fastify.database.prepare('DELETE FROM replay_user_link WHERE user_id = @userId').run({ "userId": request.params.id });
         const result = fastify.database.prepare('DELETE FROM users WHERE id = @userId').run({ "userId": request.params.id });
-        reply.send([result_for_link,result]);
+        reply.send([result_for_link, result]);
     }
     catch (err) {
         fastify.log.error(err);
