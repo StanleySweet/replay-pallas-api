@@ -39,19 +39,17 @@ class Engine {
         if (!this.database)
             return [];
 
-        // Convert existingIds array to a comma-separated string for SQL query
         const idsString = existingIds.map(id => `'${id}'`).join(',');
 
-        // Adjust the SQL query to include LIMIT and OFFSET
         const query = `
             SELECT metadata as attribs, match_id as directory 
             FROM replays 
             WHERE match_id NOT IN (${idsString}) 
-            LIMIT ${batchSize} 
-            OFFSET ${offset};
+            LIMIT @batchSize 
+            OFFSET @offset;
         `;
 
-        const replays = this.database.prepare(query).all() as LocalRatingsMetadataContainer[];
+        const replays = this.database.prepare(query).all({ "batchSize": batchSize, "offset": offset }) as LocalRatingsMetadataContainer[];
         return this.ParseReplays(replays);  
     }
 
@@ -63,11 +61,11 @@ class Engine {
         const query = `
             SELECT metadata as attribs, match_id as directory 
             FROM replays 
-            LIMIT ${batchSize} 
-            OFFSET ${offset};
+            LIMIT @batchSize 
+            OFFSET @offset;
         `;
         
-        const replays = this.database.prepare(query).all() as LocalRatingsMetadataContainer[];
+        const replays = this.database.prepare(query).all({ "batchSize": batchSize, "offset": offset }) as LocalRatingsMetadataContainer[];
         return this.ParseReplays(replays);  
     }
 
