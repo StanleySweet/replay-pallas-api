@@ -96,8 +96,8 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
 
         const replays: Replays = fastify.database.prepare(`
         SELECT * FROM replays r
-        LIMIT ${BATCH_SIZE} OFFSET ${offset};`
-        ).all() as Replays;
+        LIMIT @batchSize OFFSET @offset;`
+        ).all({ "batchSize": BATCH_SIZE, "offset": offset }) as Replays;
 
         // Check if there's no more data
         if (replays.length === 0) {

@@ -16,6 +16,7 @@ import { mode } from "../Utils";
 import snappy from 'snappy';
 import { LocalRatingsReplay } from "../local-ratings/Replay";
 import { ReplayListItem } from "../types/ReplayListItem";
+import { RawPlayerStatisticsData } from "../types/RawPlayerStatisticsData";
 
 function padNumber(number: number) {
     return number.toString().padStart(2, '0');
@@ -119,27 +120,52 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
 
     result = Object.assign(result, user);
 
-    const replays = fastify.database.prepare(`
-    Select r.match_id, r.metadata From lobby_players lp
-    Inner Join replay_lobby_player_link rlp
-    On lp.id = rlp.lobby_player_id
-    Inner Join replays r
-    On r.match_id = rlp.match_id
-    Where lp.id = @id`).all({ "id": request.params.id }) as Replays;
 
-    result.replays = replays.map(r => fastify.replayDb.replayDatabase[r.match_id]).map((replay: LocalRatingsReplay) => ({
-        "mapName": replay.mapName,
-        "playerNames": replay.players,
-        "matchId": replay.directory,
-        "date": replay.date,
-        "civs": replay.civs
-    } as ReplayListItem));
+    let offset = 0;
+    const statisticData: RawPlayerStatisticsData[] = [];
+    let hasMoreData = true;
+    result.replays = [];
+    while (hasMoreData) {
+        // Adjust the SQL query to include LIMIT and OFFSET
+        const query = `
+        Select r.match_id, r.metadata From lobby_players lp
+        Inner Join replay_lobby_player_link rlp
+        On lp.id = rlp.lobby_player_id
+        Inner Join replays r
+        On r.match_id = rlp.match_id
+        Where lp.id = @id
+        LIMIT 50 
+        OFFSET @offset;
+        `;
 
+        const replays = fastify.database.prepare(query).all({ "id": request.params.id, "offset": offset }) as Replays;
+        // Check if there's no more data
+        if (replays.length === 0) {
+            hasMoreData = false;
+            break;
+        }
 
-    for (const element of replays)
-        element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+        offset += replays.length;
 
-    compute_statistics(result, replays);
+        for (const element of replays) {
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+            const replay = fastify.replayDb.replayDatabase[element.match_id] as LocalRatingsReplay;
+            result.replays.push({
+                "mapName": replay.mapName,
+                "playerNames": replay.players,
+                "matchId": replay.directory,
+                "date": replay.date,
+                "civs": replay.civs
+            } as ReplayListItem);
+
+            statisticData.push({
+                "PlayerData": element.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0],
+                "MatchDuration": element.metadata.settings?.MatchDuration ?? 0
+            });
+        }
+    }
+
+    compute_statistics(result, statisticData);
     reply.send(result);
 };
 
@@ -158,24 +184,24 @@ const set_permission_for_user = (request: SetPermissionsRequest, reply: FastifyR
     reply.send(200);
 };
 
-const compute_statistics = (result: UserDetail, replays: Replays) => {
-    const relevantPlayerData = replays.map(b => b.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0]);
-    result.MatchCount = replays.length;
-    if (replays.length)
-        result.TotalPlayedTime = replays.map(a => a.metadata.settings?.MatchDuration ?? 0).reduce((a, b) => a + b);
+const compute_statistics = (result: UserDetail, statData: RawPlayerStatisticsData[]) => {
+    result.MatchCount = statData.length;
+    if (statData.length)
+        result.TotalPlayedTime = statData.map(a => a.MatchDuration).reduce((a, b) => a + b);
     else
         result.TotalPlayedTime = 0;
-    result.MostUsedCmd = mode(relevantPlayerData.map(a => a?.MostUsedCmd ?? ""));
-    result.SecondMostUsedCmd = mode(relevantPlayerData.map(a => a?.SecondMostUsedCmd ?? ""));
 
-    const data = relevantPlayerData.map(a => a?.State === "won" ? 1.0 : a?.State === "defeated" ? 0.0 : 0.0);
+    result.MostUsedCmd = mode(statData.map(a => a?.PlayerData?.MostUsedCmd ?? ""));
+    result.SecondMostUsedCmd = mode(statData.map(a => a?.PlayerData?.SecondMostUsedCmd ?? ""));
+
+    const data = statData.map(a => a?.PlayerData?.State === "won" ? 1.0 : a?.PlayerData?.State === "defeated" ? 0.0 : 0.0);
     if (data.length)
         result.WinRateRatio = avg(data);
     else
         result.WinRateRatio = -1;
 
 
-    const cpmData = relevantPlayerData.map(a => a?.AverageCPM ?? 0);
+    const cpmData = statData.map(a => a?.PlayerData?.AverageCPM ?? 0);
     if (cpmData.length)
         result.AverageCPM = avg(cpmData);
     else
@@ -211,28 +237,59 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
     result = Object.assign(result, user);
 
-    const replays = fastify.database.prepare(`
-    Select r.match_id, r.metadata From users u
-    Inner Join lobby_players lp
-    On lp.nick = u.nick
-    Inner Join replay_lobby_player_link rlp
-    On lp.id = rlp.lobby_player_id
-    Inner Join replays r
-    On r.match_id = rlp.match_id
-    Where u.id = @id`).all({ "id": lobby_user?.id }) as Replays;
+    const statisticData: RawPlayerStatisticsData[] = [];
+    let hasMoreData = true;
+    result.replays = [];
+    let offset = 0;
+    while (hasMoreData) {
 
-    result.replays = replays.map(r => fastify.replayDb.replayDatabase[r.match_id]).map((replay: LocalRatingsReplay) => ({
-        "mapName": replay.mapName,
-        "playerNames": replay.players,
-        "matchId": replay.directory,
-        "date": replay.date,
-        "civs": replay.civs
-    } as ReplayListItem));
 
-    for (const element of replays)
-        element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+        // Adjust the SQL query to include LIMIT and OFFSET
+        const query = `
+        Select r.match_id, r.metadata From users u
+        Inner Join lobby_players lp
+        On lp.nick = u.nick
+        Inner Join replay_lobby_player_link rlp
+        On lp.id = rlp.lobby_player_id
+        Inner Join replays r
+        On r.match_id = rlp.match_id
+        Where u.id = @id
+        LIMIT 50 
+        OFFSET @offset;
+        `;
 
-    compute_statistics(result, replays);
+        const replays = fastify.database.prepare(query).all({ "id": lobby_user?.id, "offset": offset }) as Replays;
+
+        // Check if there's no more data
+        if (replays.length === 0) {
+            hasMoreData = false;
+            break;
+        }
+
+        offset += replays.length;
+
+
+
+        for (const element of replays) {
+            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+
+            const replay = fastify.replayDb.replayDatabase[element.match_id] as LocalRatingsReplay;
+            result.replays.push({
+                "mapName": replay.mapName,
+                "playerNames": replay.players,
+                "matchId": replay.directory,
+                "date": replay.date,
+                "civs": replay.civs
+            } as ReplayListItem);
+
+            statisticData.push({
+                "PlayerData": element.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0],
+                "MatchDuration": element.metadata.settings?.MatchDuration ?? 0
+            });
+        }
+
+    }
+    compute_statistics(result, statisticData);
     reply.send(result);
 };
 
@@ -552,5 +609,3 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
 };
 
 export { UserController };
-
-
