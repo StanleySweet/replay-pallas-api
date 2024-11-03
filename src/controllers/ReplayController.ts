@@ -599,7 +599,8 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         }
 
         const replay: Replay = server.database.prepare('SELECT match_id, metadata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as Replay;
-        replay.metadata = JSON.parse(await snappy.uncompress(replay.metadata as string, { asBuffer: false }) as string);
+        if(replay?.metadata)
+            replay.metadata = JSON.parse(await snappy.uncompress(replay.metadata as string, { asBuffer: false }) as string);
         reply.send(replay ? replay : null);
     });
 
