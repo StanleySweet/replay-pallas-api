@@ -177,10 +177,10 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
         }
 
         const updateStatement = fastify.database.prepare(`
-    Update replays 
-    Set 
-    modification_date = @modification_date, 
-    metadata = @metadata 
+    Update replays
+    Set
+    modification_date = @modification_date,
+    metadata = @metadata
     Where match_id = @match_id;`);
         for (const replay of replays) {
             if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a)) {
@@ -670,7 +670,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         const replay: ReplayDetails = server.database.prepare('SELECT match_id, metadata, filedata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as ReplayDetails;
         if(replay?.metadata)
             replay.metadata = JSON.parse(await snappy.uncompress(replay.metadata as string, { asBuffer: false }) as string);
-    
+
         if(replay?.filedata)
         {
             const data = await snappy.uncompress(replay.filedata as string, { asBuffer: false }) as string;
@@ -682,7 +682,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
             replay.filedata = null;
         }
-        
+
         reply.send(replay ? replay : null);
     });
 

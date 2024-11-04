@@ -17,6 +17,7 @@ import snappy from 'snappy';
 import { LocalRatingsReplay } from "../local-ratings/Replay";
 import { ReplayListItem } from "../types/ReplayListItem";
 import { RawPlayerStatisticsData } from "../types/RawPlayerStatisticsData";
+import { PlayerStatistics } from "../types/PlayerStatistics";
 
 function padNumber(number: number) {
     return number.toString().padStart(2, '0');
@@ -120,21 +121,32 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
 
     result = Object.assign(result, user);
 
+    const statisticData: RawPlayerStatisticsData[] = [];
+
+    const cache = getStatisticCache(fastify, request.params.id);
+    const hasStatisticCache = !!cache;
+    if (hasStatisticCache) {
+        result.AverageCPM = cache.average_cpm;
+        result.WinRateRatio = cache.win_rate_ratio;
+        result.MostUsedCmd = cache.most_used_cmd;
+        result.SecondMostUsedCmd = cache.second_most_used_cmd;
+        result.MatchCount = cache.match_count;
+        result.TotalPlayedTime = cache.total_played_time;
+    }
 
     let offset = 0;
-    const statisticData: RawPlayerStatisticsData[] = [];
     let hasMoreData = true;
     result.replays = [];
     while (hasMoreData) {
         // Adjust the SQL query to include LIMIT and OFFSET
         const query = `
-        Select r.match_id, r.metadata From lobby_players lp
+        Select r.match_id ${hasStatisticCache ? "" : ", r.metadata"} From lobby_players lp
         Inner Join replay_lobby_player_link rlp
         On lp.id = rlp.lobby_player_id
         Inner Join replays r
         On r.match_id = rlp.match_id
         Where lp.id = @id
-        LIMIT 50 
+        LIMIT 50
         OFFSET @offset;
         `;
 
@@ -148,7 +160,6 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
         offset += replays.length;
 
         for (const element of replays) {
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
             const replay = fastify.replayDb.replayDatabase[element.match_id] as LocalRatingsReplay;
             result.replays.push({
                 "mapName": replay.mapName,
@@ -158,14 +169,22 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
                 "civs": replay.civs
             } as ReplayListItem);
 
-            statisticData.push({
-                "PlayerData": element.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0],
-                "MatchDuration": element.metadata.settings?.MatchDuration ?? 0
-            });
+            if (!hasStatisticCache) {
+                element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+                statisticData.push({
+                    "PlayerData": element.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0],
+                    "MatchDuration": element.metadata.settings?.MatchDuration ?? 0
+                });
+            }
         }
     }
 
-    compute_statistics(result, statisticData);
+    if (!hasStatisticCache)
+    {
+        compute_statistics(result, statisticData);
+        cacheUserStatistics(fastify, request, result);
+    }
+
     reply.send(result);
 };
 
@@ -209,6 +228,17 @@ const compute_statistics = (result: UserDetail, statData: RawPlayerStatisticsDat
 
 };
 
+const getStatisticCache = (fastify: FastifyInstance, lobby_user_id: number): PlayerStatistics => {
+    const query = `
+    SELECT * FROM user_statistics_cache
+    WHERE lobby_player_id = @id
+    AND modification_date >= datetime('now', '-1 day')
+    `;
+
+    return fastify.database.prepare(query).get({ "id": lobby_user_id }) as PlayerStatistics;
+};
+
+
 const get_user_details_by_id = async (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
@@ -238,15 +268,25 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     result = Object.assign(result, user);
 
     const statisticData: RawPlayerStatisticsData[] = [];
+
+    const cache = getStatisticCache(fastify, lobby_user.id);
+    const hasStatisticCache = !!cache;
+    if (hasStatisticCache) {
+        result.AverageCPM = cache.average_cpm;
+        result.WinRateRatio = cache.win_rate_ratio;
+        result.MostUsedCmd = cache.most_used_cmd;
+        result.SecondMostUsedCmd = cache.second_most_used_cmd;
+        result.MatchCount = cache.match_count;
+        result.TotalPlayedTime = cache.total_played_time;
+    }
+
+    let offset = 0;
     let hasMoreData = true;
     result.replays = [];
-    let offset = 0;
     while (hasMoreData) {
-
-
         // Adjust the SQL query to include LIMIT and OFFSET
         const query = `
-        Select r.match_id, r.metadata From users u
+        Select r.match_id ${hasStatisticCache ? "" : ", r.metadata"} From users u
         Inner Join lobby_players lp
         On lp.nick = u.nick
         Inner Join replay_lobby_player_link rlp
@@ -254,7 +294,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
         Inner Join replays r
         On r.match_id = rlp.match_id
         Where u.id = @id
-        LIMIT 50 
+        LIMIT 50
         OFFSET @offset;
         `;
 
@@ -268,11 +308,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
         offset += replays.length;
 
-
-
         for (const element of replays) {
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
-
             const replay = fastify.replayDb.replayDatabase[element.match_id] as LocalRatingsReplay;
             result.replays.push({
                 "mapName": replay.mapName,
@@ -282,14 +318,22 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
                 "civs": replay.civs
             } as ReplayListItem);
 
-            statisticData.push({
-                "PlayerData": element.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0],
-                "MatchDuration": element.metadata.settings?.MatchDuration ?? 0
-            });
+            if (!hasStatisticCache) {
+                element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+                statisticData.push({
+                    "PlayerData": element.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0],
+                    "MatchDuration": element.metadata.settings?.MatchDuration ?? 0
+                });
+            }
         }
-
     }
-    compute_statistics(result, statisticData);
+
+    if (!hasStatisticCache)
+    {
+        compute_statistics(result, statisticData);
+        cacheUserStatistics(fastify, request, result);
+    }
+
     reply.send(result);
 };
 
@@ -608,4 +652,50 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
     done();
 };
 
+function cacheUserStatistics(fastify : FastifyInstance, request: GetUserByIdRequest, result: { id: number; nick: string; role: EUserRole; creation_date: Date; AverageCPM: number; WinRateRatio: number; TotalPlayedTime: number; SecondMostUsedCmd: string; MostUsedCmd: string; MatchCount: number; replays: { date: string; mapName: string; playerNames: string[]; civs: string[]; matchId: string; }[]; graph?: { glicko_series: { x: string; y: number; }[]; glicko_series_avg: { x: string; y: number; }[]; game_series: { x: string; y: number; }[]; game_series_avg: { x: string; y: number; }[]; current_game_elo?: number | undefined; current_glicko_elo?: { date: string; elo: number; deviation: number; volatility: number; preview_deviation: number; } | undefined; } | undefined; }) {
+    const { count } = fastify.database.prepare(`
+        Select Count(*) as count
+        From user_statistics_cache
+        Where lobby_player_id = @lobby_player_id;`)
+        .get({ 'lobby_player_id': request.params.id }) as { count: number; };
+
+
+        const currentDate = new Date();
+        const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
+
+
+        if (count === 0)
+        fastify.database.prepare(`Insert Into user_statistics_cache (total_played_time, match_count, second_most_used_cmd, most_used_cmd, win_rate_ratio, average_cpm, lobby_player_id)
+            Values (@total_played_time, @match_count, @second_most_used_cmd, @most_used_cmd, @win_rate_ratio, @average_cpm, @lobby_player_id);
+            `)
+        .run({
+            "total_played_time": result.TotalPlayedTime,
+            "match_count": result.MatchCount,
+            "second_most_used_cmd": result.SecondMostUsedCmd,
+            "most_used_cmd": result.MostUsedCmd,
+            "win_rate_ratio": result.WinRateRatio,
+            "average_cpm": result.AverageCPM,
+            "lobby_player_id": request.params.id,
+            "modification_date": formattedDate,
+            "creation_date": formattedDate
+        });
+    else
+        fastify.database.prepare(`
+            Update user_statistics_cache
+            Set total_played_time = @total_played_time, match_count = @match_count, second_most_used_cmd = @second_most_used_cmd, most_used_cmd = @most_used_cmd, win_rate_ratio = @win_rate_ratio, average_cpm = @average_cpm, modification_date = @modification_date
+            Where lobby_player_id = @lobby_player_id`)
+        .run({
+            "total_played_time": result.TotalPlayedTime,
+            "match_count": result.MatchCount,
+            "second_most_used_cmd": result.SecondMostUsedCmd,
+            "most_used_cmd": result.MostUsedCmd,
+            "win_rate_ratio": result.WinRateRatio,
+            "average_cpm": result.AverageCPM,
+            "modification_date": formattedDate,
+            "lobby_player_id": request.params.id,
+        });
+}
+
+
 export { UserController };
+
