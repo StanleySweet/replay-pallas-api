@@ -269,9 +269,13 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
     const statisticData: RawPlayerStatisticsData[] = [];
 
-    const cache = getStatisticCache(fastify, lobby_user.id);
+    let cache : PlayerStatistics | undefined  = undefined;
+
+    if(lobby_user?.id)
+        cache = getStatisticCache(fastify, lobby_user.id);
+
     const hasStatisticCache = !!cache;
-    if (hasStatisticCache) {
+    if (hasStatisticCache && cache) {
         result.AverageCPM = cache.average_cpm;
         result.WinRateRatio = cache.win_rate_ratio;
         result.MostUsedCmd = cache.most_used_cmd;
