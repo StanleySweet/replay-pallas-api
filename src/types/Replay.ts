@@ -14,7 +14,28 @@ const ReplaySchema = z.object({
     creation_date: z.date().optional()
 });
 
+const PlayerCommandDataSchema = z.object({
+    playerCommands : z.array(z.number()),
+    playerName : z.string(),
+});
+
+const CommandStatisticsSchema = z.object({
+    turns: z.array(z.number()),
+    playerCommandDatas: z.array(PlayerCommandDataSchema)
+});
+
+const ReplayDetailsSchema = z.object({
+    metadata: ReplayMetaDataSchema,
+    filedata: z.any(),
+    match_id: z.string(),
+    creation_date: z.date().optional(),
+    command_statistics : CommandStatisticsSchema
+});
+
 type Replay = z.infer<typeof ReplaySchema>;
+type CommandStatistics = z.infer<typeof CommandStatisticsSchema>;
+type PlayerCommandData = z.infer<typeof PlayerCommandDataSchema>;
+type ReplayDetails = z.infer<typeof ReplayDetailsSchema>;
 const ReplaysSchema = z.array(ReplaySchema);
 type Replays = z.infer<typeof ReplaysSchema>;
 
@@ -35,11 +56,11 @@ const ToDbFormat = (replay: Replay) => {
 };
 
 export type {
-    Replay, Replays
+    Replay, Replays, ReplayDetails, CommandStatistics, PlayerCommandData
 };
 
 export {
-    ReplaySchema, ReplaysSchema, ToDbFormat
+    ReplaySchema, ReplaysSchema, ReplayDetailsSchema, ToDbFormat
 };
 
 

@@ -7,7 +7,7 @@ import AdmZip, { IZipEntry } from "adm-zip";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { UploadReplayZipResponse, UploadReplayZipResponseSchema } from "../types/UploadReplayZipResponse";
 import { ReplayFileData } from "../types/ReplayFileData";
-import { Replay, ReplaySchema, Replays, ReplaysSchema, ToDbFormat } from "../types/Replay";
+import { CommandStatistics, PlayerCommandData, Replay, ReplayDetails, ReplayDetailsSchema, ReplaySchema, Replays, ReplaysSchema, ToDbFormat } from "../types/Replay";
 import { UploadReplayCommandsResponseSchema } from "../types/UploadReplayCommandsResponse";
 import zodToJsonSchema from "zod-to-json-schema";
 import { ReplayMetaData } from "../types/ReplayMetaData";
@@ -223,6 +223,75 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
 
     reply.code(200);
     reply.send();
+}
+
+function extract_commands_stats(text: string) : CommandStatistics | null {
+    if (!text)
+        return null;
+
+
+    const data : CommandStatistics = {
+        turns : [] as number[],
+        playerCommandDatas: [] as PlayerCommandData[]
+    };
+
+    const commands = JSON.parse(text)["commands.txt"];
+    const lines = commands.replaceAll("\r\n", "\n").split("\n");
+    if (!lines || !lines.length || !lines[0])
+        return null;
+
+    const metadata: ReplayMetaData = JSON.parse(lines[0].replace("start ", ""));
+
+    let currentTurn = 0;
+
+    for (const line of lines) {
+        if (line.startsWith("turn")) {
+            currentTurn = +line.split(" ")[1];
+            data.turns.push(currentTurn);
+        }
+        else if (line.startsWith("cmd")) {
+            const player = +line.substring(4, 5) - 1;
+            if (!data.playerCommandDatas[player])
+                data.playerCommandDatas[player] = { "playerCommands": [] as number[], "playerName": "" };
+
+            if (metadata.settings?.PlayerData && metadata.settings.PlayerData[player] && metadata.settings.PlayerData[player].Name) {
+                const playerData = metadata.settings?.PlayerData[player];
+                const nameWithoutRating = playerData.Name?.split("(")[0].trimEnd();
+                data.playerCommandDatas[player].playerName = nameWithoutRating ?? "Unknown" + player;
+            }
+            else
+                data.playerCommandDatas[player].playerName = "Unknown" + player;
+
+            data.playerCommandDatas[player].playerCommands[currentTurn] = (data.playerCommandDatas[player].playerCommands[currentTurn] ?? 0) + 1;
+        }
+    }
+
+    for(let i = 0; i< data.playerCommandDatas.length; ++i)
+    {
+        const player = data.playerCommandDatas[i];
+        if (!player)
+        {
+            data.playerCommandDatas[i] = { "playerCommands": [] as number[], "playerName": "" };
+            if (metadata.settings?.PlayerData && metadata.settings.PlayerData[i] && metadata.settings.PlayerData[i].Name) {
+                const playerData = metadata.settings?.PlayerData[i];
+                const nameWithoutRating = playerData.Name?.split("(")[0].trimEnd();
+                data.playerCommandDatas[i].playerName = nameWithoutRating ?? "Unknown" + i;
+            }
+            else
+                data.playerCommandDatas[i].playerName = "Unknown" + i;
+        }
+    }
+
+    // Fill in the missing commands
+    for(let i = 0; i <= currentTurn; ++i){
+        for(let j = 0; j < data.playerCommandDatas.length; ++j){
+            if (data.playerCommandDatas[j].playerCommands[i] === undefined)
+                data.playerCommandDatas[j].playerCommands[i] = 0;
+        }
+    }
+
+
+    return data;
 }
 
 function extract_commands_data(text: string): ReplayMetaData | null | undefined {
@@ -577,7 +646,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
     server.get('/:matchId', {
         schema: {
             response: {
-                200: zodToJsonSchema(ReplaySchema),
+                200: zodToJsonSchema(ReplayDetailsSchema),
                 "403": {
                     type: 'null',
                     description: 'Unauthorized'
@@ -598,9 +667,22 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replay: Replay = server.database.prepare('SELECT match_id, metadata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as Replay;
+        const replay: ReplayDetails = server.database.prepare('SELECT match_id, metadata, filedata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as ReplayDetails;
         if(replay?.metadata)
             replay.metadata = JSON.parse(await snappy.uncompress(replay.metadata as string, { asBuffer: false }) as string);
+    
+        if(replay?.filedata)
+        {
+            const data = await snappy.uncompress(replay.filedata as string, { asBuffer: false }) as string;
+
+            // Compute the commands data per player to give a graph for chart.js
+            const result = extract_commands_stats(data);
+            if(result)
+                replay.command_statistics = result;
+
+            replay.filedata = null;
+        }
+        
         reply.send(replay ? replay : null);
     });
 
