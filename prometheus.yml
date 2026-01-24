@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'replay-pallas-api-monitor'
+
+scrape_configs:
+  - job_name: 'replay-pallas-api'
+    static_configs:
+      - targets: ['replay-pallas-api.wildfiregames.ovh']
+    metrics_path: '/metrics'
+    scheme: 'https'
+    scrape_interval: 15s
+    # Basic Auth: username:password
+    basic_auth:
+      username: 'prometheus'
+      password: 'YOUR_PASSWORD_HERE'
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+    scheme: 'http'
