@@ -7,7 +7,7 @@ import { Rating } from "./Rating";
 import { RatingCalculatorSettings } from "./RatingCalculatorSettings";
 import { RatingPeriodResults } from "./RatingPeriodResults";
 import { IResult } from "./IResult";
-import pino from 'pino';
+import { logger } from '../logger';
 
 const DAYS_PER_MILLI: number = 1.0 / (1000 * 60 * 60 * 24);
 
@@ -150,9 +150,9 @@ class RatingCalculator {
             fB = fC;
         }
         if (iterations === this.settings.MaxIterations) {
-            pino().error(`Convergence fail at ${iterations} iterations`);
-            pino().error(player.toString());
-            results.forEach((result) => { pino().error(result); });
+            logger.error(`Convergence fail at ${iterations} iterations`);
+            logger.error(player.toString());
+            results.forEach((result) => { logger.error(result); });
             throw new Error("Convergence fail");
         }
         const newSigma = Math.exp(A / 2.0);

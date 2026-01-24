@@ -10,7 +10,7 @@ import { RatingCalculator } from './RatingCalculator';
 import { RatingCalculatorSettings } from './RatingCalculatorSettings';
 import { Rating } from './Rating';
 import { GameRatingPeriodResults } from './RatingPeriodResults';
-import pino from 'pino';
+import { logger } from '../logger';
 import { GameResult } from './GameResult';
 
 declare module 'fastify' {
@@ -53,7 +53,7 @@ class Glicko2Manager {
 
     load(): void {
         this.ratings = this.database.prepare('Select * From glicko2_rankings;').all() as PallasGlickoRating[];
-        pino().info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded for ${new Set(this.ratings.map(a => a.lobby_player_id)).size} player(s).`);
+        logger.info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded for ${new Set(this.ratings.map(a => a.lobby_player_id)).size} player(s).`);
     }
 
     process_replays(replays: Replays): void {
@@ -121,7 +121,7 @@ class Glicko2Manager {
             }
         }
 
-        pino().info(`The glicko2 database has been rebuilt. ${this.ratings.length} ratings(s) were found for ${playersIds.size} player(s).`);
+        logger.info(`The glicko2 database has been rebuilt. ${this.ratings.length} ratings(s) were found for ${playersIds.size} player(s).`);
     }
 
     rebuild(): void {
@@ -131,7 +131,7 @@ class Glicko2Manager {
             this.rebuilding = true;
             this.database.prepare('Delete From glicko2_rankings;').run();
             const replays: Replays = this.database.prepare('Select r.metadata, r.creation_date From replays r Where 2 = (Select Count(*) From replay_lobby_player_link lp Where lp.match_id = r.match_id LIMIT 1) Order by r.creation_date ASC;').all() as Replays;
-            pino().info(`Rebuilding the glicko2 database. ${replays.length} replays(s) were found.`);
+            logger.info(`Rebuilding the glicko2 database. ${replays.length} replays(s) were found.`);
             this.ratings = [];
             this.process_replays(replays);
             this.save();
