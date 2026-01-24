@@ -5,6 +5,7 @@ import { LocalRatingsMinifier } from "./Minifier";
 import { LocalRatingsHistoryDatabase, LocalRatingsHistoryMinifiedDatabase } from "./types/HistoryDatabase";
 import { LocalRatingsMinifiedRatingDatabase, LocalRatingsRatingDatabase } from "./types/RatingDatabase";
 import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
+import { ratingsCalculationDuration, ratingsInDatabase, playersWithRatingsGauge } from "../prometheus";
 
 /**
  * This class is responsible for updating the ratings and history databases stored in the cache folder.
@@ -39,22 +40,36 @@ class LocalRatingsRatingsDB {
     }
 
     rebuild() {
+        const timer = ratingsCalculationDuration.startTimer({ operation: 'rebuild' });
         this.calculator.rebuild(this.cache, this.minifier);
 
         // Update globals
         this.ratingsDatabase = this.calculator.ratingsDatabase;
         this.historyDatabase = this.calculator.historyDatabase;
-        pino().info(`Rebuilding the rating database. ${Object.keys(this.ratingsDatabase).length} ratings and ${Object.keys(this.historyDatabase).length} history points were added.`);
+        const ratingsCount = Object.keys(this.ratingsDatabase).length;
+        const playersCount = Object.keys(this.historyDatabase).length;
+        pino().info(`Rebuilding the rating database. ${ratingsCount} ratings and ${playersCount} history points were added.`);
+        
+        // Update metrics
+        ratingsInDatabase.set(Object.keys(this.ratingsDatabase).length);
+        playersWithRatingsGauge.set(Object.keys(this.historyDatabase).length);
+        timer();
         this.save();
     }
 
     merge(newReplays: LocalRatingsReplayDatabase) {
+        const timer = ratingsCalculationDuration.startTimer({ operation: 'merge' });
         pino().info(`Merging ${Object.keys(newReplays).length} replay(s) in the rating database.`);
         this.calculator.merge(newReplays);
 
         // Update globals
         this.ratingsDatabase = this.calculator.ratingsDatabase;
         this.historyDatabase = this.calculator.historyDatabase;
+        
+        // Update metrics
+        ratingsInDatabase.set(Object.keys(this.ratingsDatabase).length);
+        playersWithRatingsGauge.set(Object.keys(this.historyDatabase).length);
+        timer();
     }
 }
 
