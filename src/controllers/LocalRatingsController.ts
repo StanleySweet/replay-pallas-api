@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
-import pino from "pino";
+import { logger } from "../logger";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import EUserRole from "../enumerations/EUserRole";
 import zodToJsonSchema from "zod-to-json-schema";
@@ -282,7 +282,7 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
         const user = users.filter(a => a.nick === x[0])[0];
 
         if (!user)
-            pino().error("Could not find user with nick: '" + x[0] + "'");
+            logger.error("Could not find user with nick: '" + x[0] + "'");
 
         return {
             "rank": i + 1, // rank

@@ -20,7 +20,7 @@ import { MetadataSettings } from "../types/MetadataSettings";
 import { LobbyRankingHistoryEntries, LobbyRankingHistoryEntriesSchema, LobbyRankingHistoryEntry } from "../types/LobbyRankingHistoryEntry";
 import { ReplayListItem, ReplayListItems, ReplayListItemsSchema } from "../types/ReplayListItem";
 import { LocalRatingsReplay } from "../local-ratings/Replay";
-import pino from 'pino';
+import { logger } from '../logger';
 import { replaysUploadedTotal } from "../prometheus";
 
 function get_list_items_from_local_ratings(matchIds: string[], reply: FastifyReply, fastify: FastifyInstance) {
@@ -106,7 +106,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
             break;
         }
 
-        pino().info(`Rebuilding replays metadata. Treating replay ${offset} to ${offset + replays.length} of ${count} replays.`);
+        logger.info(`Rebuilding replays metadata. Treating replay ${offset} to ${offset + replays.length} of ${count} replays.`);
 
         for (const replay of replays) {
             if (Buffer.isBuffer(replay.metadata))
@@ -353,7 +353,7 @@ function extract_commands_data(text: string): ReplayMetaData | null | undefined 
         return data;
 
     } catch (error) {
-        pino().error(error);
+        logger.error(error);
     }
 }
 
