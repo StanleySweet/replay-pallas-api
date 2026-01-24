@@ -21,6 +21,7 @@ import { LobbyRankingHistoryEntries, LobbyRankingHistoryEntriesSchema, LobbyRank
 import { ReplayListItem, ReplayListItems, ReplayListItemsSchema } from "../types/ReplayListItem";
 import { LocalRatingsReplay } from "../local-ratings/Replay";
 import pino from 'pino';
+import { replaysUploadedTotal } from "../prometheus";
 
 function get_list_items_from_local_ratings(matchIds: string[], reply: FastifyReply, fastify: FastifyInstance) {
     const replays: ReplayListItems = matchIds.map(matchId => fastify.replayDb.replayDatabase[matchId]).map((replay: LocalRatingsReplay) => ({
@@ -564,6 +565,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
                 // Add a link so users can delete the replays they uploaded
                 server.database.prepare("Insert Into replay_user_link (user_id, match_id) Values (@user_id, @matchId);").run({ "user_id": request.claims?.id, "matchId": replay.metadata.matchID });
                 response.AddedReplays.push(replay.metadata.matchID);
+                replaysUploadedTotal.inc();
             }
         }
 
