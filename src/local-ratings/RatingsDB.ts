@@ -1,4 +1,4 @@
-import pino from "pino";
+import { logger } from "../logger";
 import { LocalRatingsCache } from "./Cache";
 import { LocalRatingsCalculator } from "./Calculator";
 import { LocalRatingsMinifier } from "./Minifier";
@@ -48,7 +48,7 @@ class LocalRatingsRatingsDB {
         this.historyDatabase = this.calculator.historyDatabase;
         const ratingsCount = Object.keys(this.ratingsDatabase).length;
         const playersCount = Object.keys(this.historyDatabase).length;
-        pino().info(`Rebuilding the rating database. ${ratingsCount} ratings and ${playersCount} history points were added.`);
+        logger.info(`Rebuilding the rating database. ${ratingsCount} ratings and ${playersCount} history points were added.`);
         
         // Update metrics
         ratingsInDatabase.set(Object.keys(this.ratingsDatabase).length);
@@ -59,7 +59,7 @@ class LocalRatingsRatingsDB {
 
     merge(newReplays: LocalRatingsReplayDatabase) {
         const timer = ratingsCalculationDuration.startTimer({ operation: 'merge' });
-        pino().info(`Merging ${Object.keys(newReplays).length} replay(s) in the rating database.`);
+        logger.info(`Merging ${Object.keys(newReplays).length} replay(s) in the rating database.`);
         this.calculator.merge(newReplays);
 
         // Update globals

@@ -3,7 +3,7 @@ import { LocalRatingsMinifier } from "./Minifier";
 import { EngineInstance as Engine } from "../types/Engine";
 import { LocalRatingsReplay } from "./Replay";
 import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
-import pino from 'pino';
+import { logger } from "../logger";
 import { LocalRatingsMinifiedRatingDatabase } from "./types/RatingDatabase";
 import { databaseRebuildsTotal, databaseRebuildDuration, replaysProcessedTotal } from "../prometheus";
 
@@ -67,7 +67,7 @@ class LocalRatingsReplayDB {
             }
         }
 
-        pino().info(`Found ${offset} replays. Added ${count} valid new replay(s) to the replay database.`);
+        logger.info(`Found ${offset} replays. Added ${count} valid new replay(s) to the replay database.`);
         databaseRebuildsTotal.labels('replay').inc();
         timer();
         this.save();
@@ -104,7 +104,7 @@ class LocalRatingsReplayDB {
             }
         }
 
-        pino().info(`Found ${offset} new replays. Added ${count} valid new replay(s) to the replay database.`);
+        logger.info(`Found ${offset} new replays. Added ${count} valid new replay(s) to the replay database.`);
         databaseRebuildsTotal.labels('replay-update').inc();
         timer();
         this.save();

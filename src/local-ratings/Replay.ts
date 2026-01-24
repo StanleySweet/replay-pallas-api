@@ -1,7 +1,7 @@
 import { getPlayerName_LocalRatings } from "./utilities/functions_utility";
 import { LocalRatingsMetadataContainer } from "./types/MetadataContainer";
 import { LocalRatingsSequences } from "./Sequences";
-import pino from 'pino';
+import { logger } from "../logger";
 
 /**
  * This class represents a replay object.
@@ -57,7 +57,7 @@ class LocalRatingsReplay {
         }
         catch (error) {
             this.scores = [];
-            pino().info("Replay " + this.directory + " was skipped");
+            logger.info("Replay " + this.directory + " was skipped");
             this.isValid = false;
         }
     }
@@ -70,7 +70,7 @@ class LocalRatingsReplay {
         }
 
         if (invalidValues.length) {
-            pino().info("Replay " + this.directory + " was skipped because the following values are undefined", invalidValues);
+            logger.info({ replay: this.directory, invalidFields: invalidValues }, `Replay skipped - undefined fields: ${invalidValues.join(', ')}`);
         }
 
         return invalidValues.length === 0;
