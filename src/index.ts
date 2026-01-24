@@ -25,6 +25,8 @@ import { Task, SimpleIntervalJob } from "toad-scheduler";
 import fastifySchedulePlugin from "@fastify/schedule";
 import { HealthController } from "./controllers/HealthController";
 import pino from 'pino';
+import { httpRequestDuration, httpRequestsTotal, register } from './prometheus';
+import EUserRole from "./enumerations/EUserRole";
 
 const server = fastify({ logger: true });
 server.register(cors, {
@@ -88,9 +90,69 @@ async function setupAuthent() {
         })
 
         request.claims = payload;
+
+        // Check permission for /metrics endpoint
+        if (request.url === "/metrics") {
+            const hasPermission = payload.role === EUserRole.ADMINISTRATOR || payload.role === EUserRole.PROMETHEUS;
+            if (!hasPermission) {
+                reply.code(403);
+                reply.send();
+                return;
+            }
+        }
     });
 }
 setupAuthent();
+
+// Prometheus metrics hooks
+server.addHook('onRequest', async (request: FastifyRequest) => {
+    (request as any).startTime = Date.now();
+});
+
+// Helper to normalize routes (wildcard/group them)
+const normalizeRoute = (url: string): string => {
+    // Remove query params
+    const route = url.split('?')[0];
+    
+    // Group static asset routes
+    if (route.startsWith('/swagger/ui/static/')) return '/swagger/ui/static';
+    
+    // Group by controller prefix and remove IDs
+    const parts = route.split('/').filter(p => p);
+    if (parts.length === 0) return '/';
+    
+    // For routes like /replays/:id/foo, group them
+    if (parts.length > 1) {
+        // Check if second segment looks like an ID (UUID, number, etc.)
+        if (/^[0-9a-f\-]+$/i.test(parts[1])) {
+            return `/${parts[0]}/:id${parts.length > 2 ? '/' + parts.slice(2).join('/') : ''}`;
+        }
+    }
+    
+    return route;
+};
+
+server.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
+    const startTime = (request as any).startTime || Date.now();
+    const duration = Date.now() - startTime;
+    const route = normalizeRoute(request.url);
+    
+    if (duration >= 0) {
+        httpRequestDuration
+            .labels(request.method, route, reply.statusCode.toString())
+            .observe(duration);
+            
+        httpRequestsTotal
+            .labels(request.method, route, reply.statusCode.toString())
+            .inc();
+    }
+});
+
+server.get('/metrics', async (request, reply) => {
+    reply.type('text/plain');
+    return register.metrics();
+});
+
 server.addHook('preHandler', (req, res, done) => {
     const isPreflight = /options/i.test(req.method);
     if (isPreflight) {
