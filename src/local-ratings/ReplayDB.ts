@@ -5,6 +5,7 @@ import { LocalRatingsReplay } from "./Replay";
 import { LocalRatingsReplayDatabase } from "./types/ReplayDatabase";
 import pino from 'pino';
 import { LocalRatingsMinifiedRatingDatabase } from "./types/RatingDatabase";
+import { databaseRebuildsTotal, databaseRebuildDuration, replaysProcessedTotal } from "../prometheus";
 
 /**
  * This class is responsible for updating or rebuilding the replay database stored in the cache folder.
@@ -42,6 +43,7 @@ class LocalRatingsReplayDB {
     }
 
     rebuild() {
+        const timer = databaseRebuildDuration.startTimer({ database_type: 'replay' });
         let count = 0;
         let offset = 0;
         let hasMoreData = true;
@@ -58,16 +60,23 @@ class LocalRatingsReplayDB {
                 if (replayObj.isValid) {
                     ++count;
                     this.replayDatabase[replay.directory] = replayObj;
+                    replaysProcessedTotal.labels('success').inc();
+                } else {
+                    replaysProcessedTotal.labels('invalid').inc();
                 }
             }
         }
 
         pino().info(`Found ${offset} replays. Added ${count} valid new replay(s) to the replay database.`);
-        this.cache.updateVersion();
+        databaseRebuildsTotal.labels('replay').inc();
+        timer();
         this.save();
+
+        return this.replayDatabase;
     }
 
     update(): LocalRatingsReplayDatabase {
+        const timer = databaseRebuildDuration.startTimer({ database_type: 'replay-update' });
         this.load();
         let count = 0;
         let offset = 0;
@@ -88,17 +97,21 @@ class LocalRatingsReplayDB {
                     ++count;
                     this.replayDatabase[replay.directory] = replayObj;
                     newReplayDatabase[replay.directory] = replayObj;
+                    replaysProcessedTotal.labels('success').inc();
+                } else {
+                    replaysProcessedTotal.labels('invalid').inc();
                 }
             }
         }
 
         pino().info(`Found ${offset} new replays. Added ${count} valid new replay(s) to the replay database.`);
+        databaseRebuildsTotal.labels('replay-update').inc();
+        timer();
         this.save();
 
         return newReplayDatabase;
     }
 }
-
 
 export {
     LocalRatingsReplayDB
