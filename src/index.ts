@@ -6,6 +6,7 @@
 import { fastify, FastifyReply, FastifyRequest } from "fastify";
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import { UserController } from "./controllers/UserController";
@@ -24,7 +25,7 @@ import { Glicko2Manager } from "./instant-glicko-2/Glicko2Manager";
 import { Task, SimpleIntervalJob } from "toad-scheduler";
 import fastifySchedulePlugin from "@fastify/schedule";
 import { HealthController } from "./controllers/HealthController";
-import pino from 'pino';
+import { logger } from './logger';
 import { httpRequestDuration, httpRequestsTotal, register } from './prometheus';
 import EUserRole from "./enumerations/EUserRole";
 
@@ -37,6 +38,10 @@ server.register(cors, {
 
 /* eslint-disable */
 server.register(multipart)
+server.register(rateLimit, {
+    max: 100,
+    timeWindow: '15 minutes'
+})
 server.register(fastifySwagger, {
     "swagger": {
         "info": {
@@ -149,8 +154,53 @@ server.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply
 });
 
 server.get('/metrics', async (request, reply) => {
-    reply.type('text/plain');
-    return register.metrics();
+    // Basic Auth: Parse Authorization header
+    const authHeader = request.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+        reply.code(401);
+        reply.header('WWW-Authenticate', 'Basic realm="Prometheus Metrics"');
+        reply.send({ error: 'Unauthorized: Basic auth required' });
+        return;
+    }
+
+    try {
+        // Decode base64: Basic <base64(username:password)>
+        const encoded = authHeader.substring(6);
+        const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
+        const [username, password] = decoded.split(':');
+
+        if (!username || !password) {
+            reply.code(401);
+            reply.send({ error: 'Unauthorized: Invalid credentials format' });
+            return;
+        }
+
+        // Check credentials against database
+        const user = server.database.prepare(
+            "SELECT id, role FROM users WHERE nick = @nick AND password = @password LIMIT 1"
+        ).get({ nick: username, password }) as { id: number; role: number } | undefined;
+
+        if (!user) {
+            reply.code(401);
+            reply.send({ error: 'Unauthorized: Invalid username or password' });
+            return;
+        }
+
+        // Check role: ADMINISTRATOR (1) or PROMETHEUS (4)
+        if (user.role !== EUserRole.ADMINISTRATOR && user.role !== EUserRole.PROMETHEUS) {
+            reply.code(403);
+            reply.send({ error: 'Forbidden: Required role missing' });
+            return;
+        }
+
+        // Metrics authorized
+        reply.type('text/plain');
+        return register.metrics();
+    } catch (err) {
+        logger.error(err);
+        reply.code(400);
+        reply.send({ error: 'Bad Request' });
+    }
 });
 
 server.addHook('preHandler', (req, res, done) => {
@@ -172,7 +222,7 @@ server.register(fastifySchedulePlugin);
 
 server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     if (err) {
-        pino().error(err);
+        logger.error(err);
         process.exit(1);
     }
     sqlite3.verbose();
