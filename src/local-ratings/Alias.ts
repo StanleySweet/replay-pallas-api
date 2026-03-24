@@ -3,9 +3,7 @@ import { sortString_LocalRatings } from "./utilities/functions_utility";
 import { LocalRatingsHistoryDatabase } from "./types/HistoryDatabase";
 import { LocalRatingsRatingDatabase } from "./types/RatingDatabase";
 
-type LocalRatingsAliasDb = [
-
-]
+type LocalRatingsAliasDb = Record<string, string[]>;
 
 /**
  * This class is responsible for updating the aliases database stored in the cache folder
@@ -108,4 +106,8 @@ class LocalRatingsAliasManager {
 
 export {
     LocalRatingsAliasManager
+};
+
+export type {
+    LocalRatingsAliasDb
 };

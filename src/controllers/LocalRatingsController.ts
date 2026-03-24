@@ -6,7 +6,7 @@ import { logger } from "../logger";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import EUserRole from "../enumerations/EUserRole";
 import zodToJsonSchema from "zod-to-json-schema";
-import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, update_LocalRatings } from "../local-ratings/utilities/functions_utility";
+import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, sortString_LocalRatings, update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import { z } from 'zod';
 import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
 import { LatestUser, LatestUserSchema } from "../types/User";
@@ -77,20 +77,30 @@ const DistributionChartDataSchema = z.object({
     playerCount: z.number(),
 });
 
+const AliasGroupSchema = z.object({
+    primary: z.string(),
+    aliases: z.array(z.string()),
+});
+
+const AliasGroupsSchema = z.array(AliasGroupSchema);
+
 type Row = z.infer<typeof RowSchema>;
 type CivilizationChartData = z.infer<typeof CivilizationChartDataSchema>;
 type DistributionChartData = z.infer<typeof DistributionChartDataSchema>;
+type AliasGroup = z.infer<typeof AliasGroupSchema>;
+type AliasGroups = z.infer<typeof AliasGroupsSchema>;
 
 const RowsSchema = z.array(RowSchema);
 
 const GetPlayerProfileSchema = z.object({ player: z.string(), rank: z.number(), players: z.number() });
 type GetPlayerProfileModel = z.infer<typeof GetPlayerProfileSchema>;
+const PutAliasGroupsSchema = z.object({ groups: AliasGroupsSchema });
+type PutAliasGroupsModel = z.infer<typeof PutAliasGroupsSchema>;
 type PlayerProfile = z.infer<typeof PlayerProfileSchema>;
 type EvolutionChartData = z.infer<typeof EvolutionChartDataSchema>;
 
-
-
 type GetPlayerProfileRequest = FastifyRequest<{ Body: GetPlayerProfileModel }>;
+type PutAliasGroupsRequest = FastifyRequest<{ Body: PutAliasGroupsModel }>;
 
 const PallasGlickoRatingSchema = z.object({
     "id": z.number().optional(),
@@ -164,6 +174,35 @@ function mixChartColors(colorLeft: string, colorRight: string, index: number, co
     const ratio = count <= 1 ? 0 : index / (count - 1);
     return left.map((value, componentIndex) =>
         Math.round((1 - ratio) * value + ratio * right[componentIndex])).join(" ");
+}
+
+function normalizeAliasGroups(groups: AliasGroups): AliasGroups {
+    const normalizedGroups = groups
+        .map(group => {
+            const primary = group.primary.trim();
+            const aliases = Array.from(new Set(group.aliases.map(alias => alias.trim()).filter(Boolean)))
+                .filter(alias => alias !== primary)
+                .sort(sortString_LocalRatings);
+            return {
+                primary,
+                aliases
+            };
+        })
+        .filter(group => group.primary);
+
+    const seenPlayers = new Set<string>();
+    const uniqueGroups: AliasGroups = [];
+
+    for (const group of normalizedGroups.sort((left, right) => sortString_LocalRatings(left.primary, right.primary))) {
+        const allNames = [group.primary, ...group.aliases];
+        if (allNames.some(name => seenPlayers.has(name)))
+            continue;
+
+        allNames.forEach(name => seenPlayers.add(name));
+        uniqueGroups.push(group);
+    }
+
+    return uniqueGroups;
 }
 
 const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
@@ -367,6 +406,43 @@ const get_distribution_chart_data = (request: GetPlayerProfileRequest, reply: Fa
     reply.send(data);
 };
 
+const get_alias_groups = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
+        reply.code(401);
+        reply.send();
+        return;
+    }
+
+    fastify.aliasDb.load();
+    const groups: AliasGroups = Object.entries(fastify.aliasDb.aliasesDatabase ?? {})
+        .map(([primary, aliases]) => ({
+            primary,
+            aliases: [...aliases].sort(sortString_LocalRatings)
+        }))
+        .sort((left, right) => sortString_LocalRatings(left.primary, right.primary));
+
+    reply.send(groups);
+};
+
+const put_alias_groups = (request: PutAliasGroupsRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
+        reply.code(401);
+        reply.send();
+        return;
+    }
+
+    const groups = normalizeAliasGroups(request.body.groups);
+    fastify.aliasDb.aliasesDatabase = Object.fromEntries(groups.map(group => [group.primary, group.aliases])) as typeof fastify.aliasDb.aliasesDatabase;
+    fastify.aliasDb.save();
+    update_LocalRatings({
+        "ratingsDb": fastify.ratingsDb,
+        "replayDb": fastify.replayDb,
+        "aliasDb": fastify.aliasDb,
+    });
+
+    reply.send(groups);
+};
+
 
 const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
@@ -532,6 +608,33 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
             ...schemaCommon
         }
     }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_distribution_chart_data(request, reply, fastify));
+
+    fastify.get("/aliases", {
+        schema: {
+            response: {
+                200: zodToJsonSchema(AliasGroupsSchema),
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: FastifyRequest, reply: FastifyReply) => get_alias_groups(request, reply, fastify));
+
+    fastify.put("/aliases", {
+        schema: {
+            body: zodToJsonSchema(PutAliasGroupsSchema),
+            response: {
+                200: zodToJsonSchema(AliasGroupsSchema),
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: PutAliasGroupsRequest, reply: FastifyReply) => put_alias_groups(request, reply, fastify));
 
     fastify.post("/player-profile", {
         schema: {
