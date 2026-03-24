@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
 import { LatestUser, LatestUserSchema } from "../types/User";
 import { LocalRatingsEvolutionChartOptions } from "../local-ratings/EvolutionChartOptions";
+import { LocalRatingsDistributionChartOptions } from "../local-ratings/DistributionChartOptions";
 import { Civilizations } from "../types/Civilization";
 
 const RankDataSchema = z.object({
@@ -59,8 +60,26 @@ const CivilizationChartDataSchema = z.object({
     "advantages": z.array(z.number()),
 });
 
+const DistributionChartBinSchema = z.object({
+    tier: z.number(),
+    rangeStart: z.number(),
+    rangeEnd: z.number(),
+    playerCount: z.number(),
+    isCurrentPlayerTier: z.boolean(),
+    color: z.string(),
+});
+
+const DistributionChartDataSchema = z.object({
+    bins: z.array(DistributionChartBinSchema),
+    mean: z.nullable(z.number()),
+    showMean: z.boolean(),
+    currentRating: z.number(),
+    playerCount: z.number(),
+});
+
 type Row = z.infer<typeof RowSchema>;
 type CivilizationChartData = z.infer<typeof CivilizationChartDataSchema>;
+type DistributionChartData = z.infer<typeof DistributionChartDataSchema>;
 
 const RowsSchema = z.array(RowSchema);
 
@@ -137,6 +156,14 @@ function getAverageRatings(singleGamesRatings: number[]) {
     for (let i = 1; i < singleGamesRatings.length; i++)
         singleGamesRatingsSum.push(singleGamesRatingsSum[i - 1] + singleGamesRatings[i]);
     return singleGamesRatingsSum.map((x, i) => x / (i + 1));
+}
+
+function mixChartColors(colorLeft: string, colorRight: string, index: number, count: number) {
+    const left = colorLeft.split(" ").map(value => Number.parseInt(value, 10));
+    const right = colorRight.split(" ").map(value => Number.parseInt(value, 10));
+    const ratio = count <= 1 ? 0 : index / (count - 1);
+    return left.map((value, componentIndex) =>
+        Math.round((1 - ratio) * value + ratio * right[componentIndex])).join(" ");
 }
 
 const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
@@ -250,6 +277,92 @@ const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply:
         data.colors.push(configOptions.colorperformance);
         data.legends.push("EvolutionChart.PerformanceOverTimeLegend");
     }
+
+    reply.send(data);
+};
+
+const get_distribution_chart_data = (request: GetPlayerProfileRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
+        reply.code(401);
+        reply.send();
+        return;
+    }
+
+    const player = request.body.player;
+    const ratingsDatabase = fastify.ratingsDb.ratingsDatabase;
+    const playerEntry = ratingsDatabase[player];
+
+    if (!playerEntry) {
+        reply.code(204);
+        reply.send();
+        return;
+    }
+
+    const ratingsList = Object.values(ratingsDatabase)
+        .map(entry => entry.rating)
+        .sort((a, b) => a - b);
+    if (!ratingsList.length) {
+        reply.code(204);
+        reply.send();
+        return;
+    }
+
+    const configOptions = new LocalRatingsDistributionChartOptions();
+    const min = ratingsList[0];
+    const max = ratingsList[ratingsList.length - 1];
+    const currentRating = playerEntry.rating;
+    const histogramBins = Math.max(1, Math.min(configOptions.histogrambins, ratingsList.length));
+
+    if (min === max) {
+        const data: DistributionChartData = {
+            bins: [{
+                tier: 1,
+                rangeStart: min,
+                rangeEnd: max,
+                playerCount: ratingsList.length,
+                isCurrentPlayerTier: true,
+                color: configOptions.colorcurrentbin
+            }],
+            mean: configOptions.showmean ? min : null,
+            showMean: configOptions.showmean,
+            currentRating,
+            playerCount: ratingsList.length
+        };
+        reply.send(data);
+        return;
+    }
+
+    const range = max - min;
+    const step = range / histogramBins;
+    const bins = Array.from({ length: histogramBins }, (_, index) => ({
+        tier: index + 1,
+        rangeStart: min + step * index,
+        rangeEnd: index === histogramBins - 1 ? max : min + step * (index + 1),
+        playerCount: 0,
+        isCurrentPlayerTier: false,
+        color: mixChartColors(configOptions.colorbinleft, configOptions.colorbinright, index, histogramBins)
+    }));
+
+    for (const rating of ratingsList) {
+        let index = Math.floor((rating - min) / step);
+        if (index >= bins.length)
+            index = bins.length - 1;
+        bins[index].playerCount += 1;
+    }
+
+    let playerIndex = Math.floor((currentRating - min) / step);
+    if (playerIndex >= bins.length)
+        playerIndex = bins.length - 1;
+    bins[playerIndex].isCurrentPlayerTier = true;
+    bins[playerIndex].color = configOptions.colorcurrentbin;
+
+    const data: DistributionChartData = {
+        bins,
+        mean: configOptions.showmean ? getMean_LocalRatings(ratingsList) : null,
+        showMean: configOptions.showmean,
+        currentRating,
+        playerCount: ratingsList.length
+    };
 
     reply.send(data);
 };
@@ -401,6 +514,24 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
             ...schemaCommon
         }
     }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_evolution_chart_data(request, reply, fastify));
+
+    fastify.post("/distribution-data", {
+        schema: {
+            body: zodToJsonSchema(GetPlayerProfileSchema),
+            response: {
+                200: zodToJsonSchema(DistributionChartDataSchema),
+                204: {
+                    type: 'null',
+                    description: 'No Content'
+                },
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_distribution_chart_data(request, reply, fastify));
 
     fastify.post("/player-profile", {
         schema: {
