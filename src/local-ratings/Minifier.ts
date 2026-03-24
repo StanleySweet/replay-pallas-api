@@ -131,7 +131,7 @@ class LocalRatingsMinifier {
             if (replayKey == "civs")
             {
                 const data = minifiedReplayObj[replayKeyIndex] as number[];
-                return [replayKey, data.map((x: number) => this.civs[x])];
+                return [replayKey, data.map((x: number) => this.civs[x] ?? "")];
             }
             if (["worldPopulation", "hasAiPlayers", "cheatsEnabled", "revealedMap", "exploredMap", "nomad", "isValid"].includes(replayKey as keyof typeof LocalRatingsReplay))
                 return [replayKey, minifiedReplayObj[replayKeyIndex] ? true : false];
@@ -192,7 +192,7 @@ class LocalRatingsMinifier {
                 const replayData = minifiedHistoryDatabase[player][replayDir];
                 playerData[replayDir] = {
                     "rating": replayData[0],
-                    "civ": this.civs[replayData[1]]
+                    "civ": this.civs[replayData[1]] ?? ""
                 } as LocalRatingsHistoryDatabaseElement;
             }
             historyDatabase[player] = playerData;

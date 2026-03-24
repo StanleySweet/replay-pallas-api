@@ -31,9 +31,10 @@ class LocalRatingsReplay {
 
 
     constructor(metadata: LocalRatingsMetadataContainer) {
+        const playerData = metadata.attribs.settings?.PlayerData?.filter((player) => typeof player?.Name === "string") ?? [];
+        const playerNames = playerData.map((player) => player.Name as string);
 
         this.cheatsEnabled = metadata.getCheatsEnabled();
-        this.civs = metadata.getCivs();
         this.date = metadata.getDate();
         this.directory = metadata.directory;
         this.duration = metadata.getDuration();
@@ -46,8 +47,8 @@ class LocalRatingsReplay {
         this.startingResources = metadata.getStartingResources();
         this.teamsSize = metadata.getTeamsSize();
         this.worldPopulation = metadata.getWorldPopulation();
-        const playerNames = metadata.getPlayerNames();
         this.players = playerNames.map((x) => getPlayerName_LocalRatings(x));
+        this.civs = playerData.map((player) => typeof player.Civ === "string" ? player.Civ : "");
         this.hasAiPlayers = playerNames.some((x) => metadata.isPlayerAI(x));
         this.isValid = false;
 
@@ -80,4 +81,3 @@ class LocalRatingsReplay {
 export {
     LocalRatingsReplay
 };
-
