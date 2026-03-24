@@ -22,15 +22,12 @@ import { ReplayListItem, ReplayListItems, ReplayListItemsSchema } from "../types
 import { LocalRatingsReplay } from "../local-ratings/Replay";
 import { logger } from '../logger';
 import { replaysUploadedTotal } from "../prometheus";
+import { toReplayListItem } from "./helpers/replayListItem";
 
 function get_list_items_from_local_ratings(matchIds: string[], reply: FastifyReply, fastify: FastifyInstance) {
-    const replays: ReplayListItems = matchIds.map(matchId => fastify.replayDb.replayDatabase[matchId]).map((replay: LocalRatingsReplay) => ({
-        "mapName": replay.mapName,
-        "playerNames": replay.players,
-        "matchId": replay.directory,
-        "date": replay.date,
-        "civs": replay.civs
-    } as ReplayListItem));
+    const replays: ReplayListItems = matchIds
+        .map((matchId) => toReplayListItem(fastify.replayDb.replayDatabase[matchId] as LocalRatingsReplay | undefined))
+        .filter((replay): replay is ReplayListItem => replay !== null);
 
     if (!replays || !replays.length) {
         reply.code(204);
@@ -693,6 +690,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         schema: {
             response: {
                 "200": zodToJsonSchema(ReplayListItemsSchema),
+                "204": { type: 'null', description: 'No Content' },
                 "401": { type: 'null', description: 'Unauthorized' },
                 "403": { type: 'null', description: 'Unauthorized' }
             },
@@ -704,6 +702,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         schema: {
             response: {
                 "200": zodToJsonSchema(ReplayListItemsSchema),
+                "204": { type: 'null', description: 'No Content' },
                 "401": { type: 'null', description: 'Unauthorized' },
                 "403": { type: 'null', description: 'Unauthorized' }
             },
@@ -715,6 +714,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         schema: {
             response: {
                 "200": zodToJsonSchema(ReplayListItemsSchema),
+                "204": { type: 'null', description: 'No Content' },
                 "401": { type: 'null', description: 'Unauthorized' },
                 "403": { type: 'null', description: 'Unauthorized' }
             },

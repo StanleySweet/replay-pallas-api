@@ -18,6 +18,7 @@ import { LocalRatingsReplay } from "../local-ratings/Replay";
 import { ReplayListItem } from "../types/ReplayListItem";
 import { RawPlayerStatisticsData } from "../types/RawPlayerStatisticsData";
 import { PlayerStatistics } from "../types/PlayerStatistics";
+import { toReplayListItem } from "./helpers/replayListItem";
 
 function padNumber(number: number) {
     return number.toString().padStart(2, '0');
@@ -161,13 +162,9 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
 
         for (const element of replays) {
             const replay = fastify.replayDb.replayDatabase[element.match_id] as LocalRatingsReplay;
-            result.replays.push({
-                "mapName": replay.mapName,
-                "playerNames": replay.players,
-                "matchId": replay.directory,
-                "date": replay.date,
-                "civs": replay.civs
-            } as ReplayListItem);
+            const replayListItem = toReplayListItem(replay);
+            if (replayListItem)
+                result.replays.push(replayListItem);
 
             if (!hasStatisticCache) {
                 element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
@@ -314,13 +311,9 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
         for (const element of replays) {
             const replay = fastify.replayDb.replayDatabase[element.match_id] as LocalRatingsReplay;
-            result.replays.push({
-                "mapName": replay.mapName,
-                "playerNames": replay.players,
-                "matchId": replay.directory,
-                "date": replay.date,
-                "civs": replay.civs
-            } as ReplayListItem);
+            const replayListItem = toReplayListItem(replay);
+            if (replayListItem)
+                result.replays.push(replayListItem);
 
             if (!hasStatisticCache) {
                 element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
@@ -702,4 +695,3 @@ function cacheUserStatistics(fastify : FastifyInstance, request: GetUserByIdRequ
 
 
 export { UserController };
-
