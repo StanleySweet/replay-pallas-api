@@ -9,8 +9,12 @@ type LocalRatingsSettings = {
  * This class is responsible for dealing with settings.
  */
 class LocalRatingsSettingsManager {
+    getOptionsDefinition(): LocalRatingsOptions {
+        return Engine.ReadJSONFile("src/local-ratings/types/options.json") as LocalRatingsOptions;
+    }
+
     getSaved(): LocalRatingsSettings {
-        const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json") as LocalRatingsOptions;
+        const optionsJSON = this.getOptionsDefinition();
         let settings: LocalRatingsSettings = {};
         for (const category of optionsJSON) {
             for (const option of category.options) {
@@ -28,7 +32,7 @@ class LocalRatingsSettingsManager {
     }
 
     getDefault(): LocalRatingsSettings {
-        const optionsJSON: LocalRatingsOptions = Engine.ReadJSONFile("src/local-ratings/types/options.json") as LocalRatingsOptions;
+        const optionsJSON = this.getOptionsDefinition();
         let settings: LocalRatingsSettings = {};
         for (const category of optionsJSON) {
             for (const option of category.options) {
@@ -60,6 +64,18 @@ class LocalRatingsSettingsManager {
             }
         }
         return settings;
+    }
+
+    saveValues(values: LocalRatingsSettings): LocalRatingsSettings {
+        const allowedKeys = new Set(Object.keys(this.getDefault()));
+        for (const key of Object.keys(values)) {
+            if (!allowedKeys.has(key))
+                continue;
+
+            Engine.ConfigDB_CreateValue("user", key, values[key] ?? "");
+        }
+
+        return this.getSaved();
     }
 
 }

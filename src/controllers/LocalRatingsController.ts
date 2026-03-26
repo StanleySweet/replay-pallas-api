@@ -12,6 +12,7 @@ import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/Hist
 import { LatestUser, LatestUserSchema } from "../types/User";
 import { LocalRatingsEvolutionChartOptions } from "../local-ratings/EvolutionChartOptions";
 import { LocalRatingsDistributionChartOptions } from "../local-ratings/DistributionChartOptions";
+import { LocalRatingsSettingsManager } from "../local-ratings/Settings";
 import { Civilizations } from "../types/Civilization";
 
 const RankDataSchema = z.object({
@@ -84,11 +85,40 @@ const AliasGroupSchema = z.object({
 
 const AliasGroupsSchema = z.array(AliasGroupSchema);
 
+const LocalRatingsOptionListItemSchema = z.object({
+    value: z.union([z.string(), z.number(), z.boolean()]),
+    label: z.string(),
+});
+
+const LocalRatingsOptionSchema = z.object({
+    type: z.string(),
+    label: z.string(),
+    tooltip: z.string(),
+    config: z.string(),
+    val: z.union([z.string(), z.number(), z.boolean()]),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    dependencies: z.array(z.string()).optional(),
+    list: z.array(LocalRatingsOptionListItemSchema).optional(),
+});
+
+const LocalRatingsOptionCategorySchema = z.object({
+    label: z.string(),
+    tooltip: z.string(),
+    options: z.array(LocalRatingsOptionSchema),
+});
+
+const LocalRatingsOptionsPayloadSchema = z.object({
+    categories: z.array(LocalRatingsOptionCategorySchema),
+    values: z.record(z.string(), z.string().nullable()),
+});
+
 type Row = z.infer<typeof RowSchema>;
 type CivilizationChartData = z.infer<typeof CivilizationChartDataSchema>;
 type DistributionChartData = z.infer<typeof DistributionChartDataSchema>;
 type AliasGroup = z.infer<typeof AliasGroupSchema>;
 type AliasGroups = z.infer<typeof AliasGroupsSchema>;
+type LocalRatingsOptionsPayload = z.infer<typeof LocalRatingsOptionsPayloadSchema>;
 
 const RowsSchema = z.array(RowSchema);
 
@@ -96,11 +126,14 @@ const GetPlayerProfileSchema = z.object({ player: z.string(), rank: z.number(), 
 type GetPlayerProfileModel = z.infer<typeof GetPlayerProfileSchema>;
 const PutAliasGroupsSchema = z.object({ groups: AliasGroupsSchema });
 type PutAliasGroupsModel = z.infer<typeof PutAliasGroupsSchema>;
+const PutLocalRatingsOptionsSchema = z.object({ values: z.record(z.string(), z.string()) });
+type PutLocalRatingsOptionsModel = z.infer<typeof PutLocalRatingsOptionsSchema>;
 type PlayerProfile = z.infer<typeof PlayerProfileSchema>;
 type EvolutionChartData = z.infer<typeof EvolutionChartDataSchema>;
 
 type GetPlayerProfileRequest = FastifyRequest<{ Body: GetPlayerProfileModel }>;
 type PutAliasGroupsRequest = FastifyRequest<{ Body: PutAliasGroupsModel }>;
+type PutLocalRatingsOptionsRequest = FastifyRequest<{ Body: PutLocalRatingsOptionsModel }>;
 
 const PallasGlickoRatingSchema = z.object({
     "id": z.number().optional(),
@@ -443,6 +476,44 @@ const put_alias_groups = (request: PutAliasGroupsRequest, reply: FastifyReply, f
     reply.send(groups);
 };
 
+const get_local_ratings_options = (request: FastifyRequest, reply: FastifyReply): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
+        reply.code(401);
+        reply.send();
+        return;
+    }
+
+    const settings = new LocalRatingsSettingsManager();
+    const payload: LocalRatingsOptionsPayload = {
+        categories: settings.getOptionsDefinition(),
+        values: settings.getSaved()
+    };
+
+    reply.send(payload);
+};
+
+const put_local_ratings_options = (request: PutLocalRatingsOptionsRequest, reply: FastifyReply): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
+        reply.code(401);
+        reply.send();
+        return;
+    }
+
+    const settings = new LocalRatingsSettingsManager();
+    reply.send(settings.saveValues(request.body.values));
+};
+
+const restore_local_ratings_options = (request: FastifyRequest, reply: FastifyReply): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
+        reply.code(401);
+        reply.send();
+        return;
+    }
+
+    const settings = new LocalRatingsSettingsManager();
+    reply.send(settings.restoreLocalDefault());
+};
+
 
 const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
@@ -635,6 +706,56 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
             ...schemaCommon
         }
     }, (request: PutAliasGroupsRequest, reply: FastifyReply) => put_alias_groups(request, reply, fastify));
+
+    fastify.get("/options", {
+        schema: {
+            response: {
+                200: zodToJsonSchema(LocalRatingsOptionsPayloadSchema),
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: FastifyRequest, reply: FastifyReply) => get_local_ratings_options(request, reply));
+
+    fastify.put("/options", {
+        schema: {
+            body: zodToJsonSchema(PutLocalRatingsOptionsSchema),
+            response: {
+                200: {
+                    type: "object",
+                    additionalProperties: {
+                        anyOf: [{ type: "string" }, { type: "null" }]
+                    }
+                },
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: PutLocalRatingsOptionsRequest, reply: FastifyReply) => put_local_ratings_options(request, reply));
+
+    fastify.post("/options/restore-defaults", {
+        schema: {
+            response: {
+                200: {
+                    type: "object",
+                    additionalProperties: {
+                        anyOf: [{ type: "string" }, { type: "null" }]
+                    }
+                },
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: FastifyRequest, reply: FastifyReply) => restore_local_ratings_options(request, reply));
 
     fastify.post("/player-profile", {
         schema: {
