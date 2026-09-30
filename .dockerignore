@@ -1,0 +1,12 @@
+# dist/ holds the 350 MB production sqlite3 database and stale compiler output.
+# podman does not read .gitignore, so this must be explicit or the database
+# gets baked into an image layer on every build.
+dist/
+node_modules/
+.venv/
+*.sqlite3*
+*.log
+yarn.lock
+yarn-error.log
+.DS_Store
+.env
