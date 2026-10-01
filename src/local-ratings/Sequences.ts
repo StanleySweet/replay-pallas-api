@@ -111,10 +111,6 @@ class LocalRatingsSequences {
         return sequences.tributesSent;
     }
 
-    getTributesReceived(sequences: Sequences): number[] {
-        return sequences.tributesReceived;
-    }
-
     // TRADE
 
     getTradeIncome(sequences: Sequences): number[] {

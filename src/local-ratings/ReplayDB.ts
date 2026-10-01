@@ -22,11 +22,6 @@ class LocalRatingsReplayDB {
         this.batchSize = 50;
     }
 
-    isEmpty() {
-        const database = this.cache.load("replayDatabase");
-        return Object.keys(database).length === 0;
-    }
-
     load() {
         this.replayDatabase = this.minifier.magnifyReplayDatabase(this.cache.load("replayDatabase") as LocalRatingsMinifiedRatingDatabase);
     }

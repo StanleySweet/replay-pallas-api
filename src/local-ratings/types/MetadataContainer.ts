@@ -41,10 +41,6 @@ export class LocalRatingsMetadataContainer {
         return this.attribs.settings?.PlayerData?.map(x => x.Name).filter((item): item is string => !!item) ?? [];
     }
 
-    getCivs(): string[] {
-        return this.attribs.settings?.PlayerData?.map(x => x.Civ).filter((item): item is string => !!item) ?? [];
-    }
-
     getTeamsSize() {
         const teamData: { [team: string]: number } = {};
         this.attribs.settings?.PlayerData?.forEach(x => {

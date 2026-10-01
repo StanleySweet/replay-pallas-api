@@ -91,17 +91,6 @@ class LocalRatingsAliasManager {
         }
     }
 
-    removeDuplicates(ratingsDatabase: LocalRatingsRatingDatabase, historyDatabase: LocalRatingsHistoryDatabase | undefined) {
-        this.load();
-        Object.values(this.aliasesDatabase).flat().forEach(alias => {
-
-
-            delete ratingsDatabase[alias as keyof typeof ratingsDatabase];
-            if (historyDatabase)
-                delete historyDatabase[alias as keyof typeof historyDatabase];
-        });
-    }
-
 }
 
 export {

@@ -46,10 +46,6 @@ class LocalRatingsCache {
                         "";
     }
 
-    updateVersion() {
-        Engine.WriteJSONFile(this.cacheVersionFile, { "version": this.version });
-    }
-
     isUpdateRequired() {
         return !Engine.FileExists(this.cacheVersionFile) || (Engine.ReadJSONFile(this.cacheVersionFile) as { "version": number }).version !== this.version;
     }

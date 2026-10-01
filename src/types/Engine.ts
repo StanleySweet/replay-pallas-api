@@ -82,15 +82,6 @@ class Engine {
     FileExists(x: string): boolean {
         return existsSync(x);
     }
-    GetEngineInfo() {
-        return {
-            mods: [{
-                "mod": "public",
-                "version": "0.0.26"
-            }]
-        };
-    }
-
     ReadJSONFile(fileName: string): unknown {
         return JSON.parse(readFileSync(fileName, { encoding: "utf-8" }));
     }

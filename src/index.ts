@@ -95,16 +95,6 @@ async function setupAuthent() {
         })
 
         request.claims = payload;
-
-        // Check permission for /metrics endpoint
-        if (request.url === "/metrics") {
-            const hasPermission = payload.role === EUserRole.ADMINISTRATOR || payload.role === EUserRole.PROMETHEUS;
-            if (!hasPermission) {
-                reply.code(403);
-                reply.send();
-                return;
-            }
-        }
     });
 }
 setupAuthent();
@@ -202,15 +192,6 @@ server.get('/metrics', async (request, reply) => {
         reply.send({ error: 'Bad Request' });
     }
 });
-
-server.addHook('preHandler', (req, res, done) => {
-    const isPreflight = /options/i.test(req.method);
-    if (isPreflight) {
-      return res.send();
-    }
-
-    done();
-  });
 
 
 server.register(HealthController, { prefix: '/health' });
