@@ -69,6 +69,13 @@ class LocalRatingsPlayerFilter {
 
     // Filtering functions
 
+    // A nick we have no rating for cannot be filtered on its rating, and
+    // reading .matches off undefined would throw. Callers pass whatever the
+    // UI has, so treat an unknown player as "does not match any filter".
+    isKnown(playerName: string) {
+        return !!this.ratingsDatabase[playerName];
+    }
+
     filterMinGames(playerName: string) {
         return (this.ratingsDatabase[playerName].matches < this.configOptions.mingames);
     }
@@ -94,6 +101,8 @@ class LocalRatingsPlayerFilter {
     // Main function
 
     applies(playerName : string) {
+        if (!this.isKnown(playerName))
+            return false;
         if (this.filterMinGames(playerName))
             return true;
         if (this.filterMaxGames(playerName))

@@ -13,6 +13,7 @@ import { LatestUser, LatestUserSchema } from "../types/User";
 import { LocalRatingsEvolutionChartOptions } from "../local-ratings/EvolutionChartOptions";
 import { LocalRatingsDistributionChartOptions } from "../local-ratings/DistributionChartOptions";
 import { LocalRatingsSettingsManager } from "../local-ratings/Settings";
+import { LocalRatingsPlayerFilter } from "../local-ratings/PlayerFilter";
 import { Civilizations } from "../types/Civilization";
 
 const RankDataSchema = z.object({
@@ -568,14 +569,27 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
     }
 
     const db = fastify.ratingsDb.ratingsDatabase;
+    const playerFilter = new LocalRatingsPlayerFilter(db);
 
     // Create an array of players, rating, matches.
-    // We sort by rating, so we keep the information on their rank
-    const items = Object.keys(db).map(x => [
+    // We sort by rating, so we keep the information on their rank.
+    // The player filter runs BEFORE the sort on purpose: it drops players
+    // that have too few games (or, when enabled, a rating outside the
+    // configured bounds) from the ranking, so that nobody tops the
+    // leaderboard on a single lucky game. Filtering after ranking would
+    // leave gaps in the rank column.
+    const items = Object.keys(db).filter(x => !playerFilter.applies(x)).map(x => [
         x,
         db[x].rating,
         db[x].matches
     ]).sort((a, b) => (b[1] as number) - (a[1] as number));
+
+    // An over-eager filter can exclude everybody, and `IN ()` is a syntax
+    // error, so bail out before building the query.
+    if (!items.length) {
+        reply.send([]);
+        return;
+    }
 
     const users: LatestUser[] = fastify.database.prepare(`SELECT lp.id, lp.nick, (CASE  when u.role IS  Null then 0 else u.role END)
     as role, CASE When u.creation_date is null then lp.creation_date else lp.creation_date End as creation_date FROM lobby_players lp
