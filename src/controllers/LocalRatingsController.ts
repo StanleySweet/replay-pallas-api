@@ -78,6 +78,9 @@ const DistributionChartDataSchema = z.object({
     playerCount: z.number(),
 });
 
+const ReplayDistributionRequestSchema = z.object({ matchId: z.string() });
+type ReplayDistributionRequestModel = z.infer<typeof ReplayDistributionRequestSchema>;
+
 const AliasGroupSchema = z.object({
     primary: z.string(),
     aliases: z.array(z.string()),
@@ -132,6 +135,7 @@ type PlayerProfile = z.infer<typeof PlayerProfileSchema>;
 type EvolutionChartData = z.infer<typeof EvolutionChartDataSchema>;
 
 type GetPlayerProfileRequest = FastifyRequest<{ Body: GetPlayerProfileModel }>;
+type ReplayDistributionRequest = FastifyRequest<{ Body: ReplayDistributionRequestModel }>;
 type PutAliasGroupsRequest = FastifyRequest<{ Body: PutAliasGroupsModel }>;
 type PutLocalRatingsOptionsRequest = FastifyRequest<{ Body: PutLocalRatingsOptionsModel }>;
 
@@ -379,14 +383,17 @@ const get_distribution_chart_data = (request: GetPlayerProfileRequest, reply: Fa
         return;
     }
 
+    reply.send(buildDistributionChartData(ratingsList, [playerEntry.rating]));
+};
+
+const buildDistributionChartData = (ratingsList: number[], highlights: number[]): DistributionChartData => {
     const configOptions = new LocalRatingsDistributionChartOptions();
     const min = ratingsList[0];
     const max = ratingsList[ratingsList.length - 1];
-    const currentRating = playerEntry.rating;
     const histogramBins = Math.max(1, Math.min(configOptions.histogrambins, ratingsList.length));
 
     if (min === max) {
-        const data: DistributionChartData = {
+        return {
             bins: [{
                 tier: 1,
                 rangeStart: min,
@@ -397,11 +404,9 @@ const get_distribution_chart_data = (request: GetPlayerProfileRequest, reply: Fa
             }],
             mean: configOptions.showmean ? min : null,
             showMean: configOptions.showmean,
-            currentRating,
+            currentRating: highlights[0] ?? min,
             playerCount: ratingsList.length
         };
-        reply.send(data);
-        return;
     }
 
     const range = max - min;
@@ -422,21 +427,62 @@ const get_distribution_chart_data = (request: GetPlayerProfileRequest, reply: Fa
         bins[index].playerCount += 1;
     }
 
-    let playerIndex = Math.floor((currentRating - min) / step);
-    if (playerIndex >= bins.length)
-        playerIndex = bins.length - 1;
-    bins[playerIndex].isCurrentPlayerTier = true;
-    bins[playerIndex].color = configOptions.colorcurrentbin;
+    for (const highlight of highlights) {
+        let index = Math.floor((highlight - min) / step);
+        if (index >= bins.length)
+            index = bins.length - 1;
+        bins[index].isCurrentPlayerTier = true;
+        bins[index].color = configOptions.colorcurrentbin;
+    }
 
-    const data: DistributionChartData = {
+    return {
         bins,
         mean: configOptions.showmean ? getMean_LocalRatings(ratingsList) : null,
         showMean: configOptions.showmean,
-        currentRating,
+        currentRating: highlights[0] ?? min,
         playerCount: ratingsList.length
     };
+};
 
-    reply.send(data);
+const get_replay_distribution_chart_data = (request: ReplayDistributionRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
+        reply.code(401);
+        reply.send();
+        return;
+    }
+
+    const matchId = request.body.matchId;
+    if (!matchId) {
+        reply.code(204);
+        reply.send();
+        return;
+    }
+
+    const ratingsDatabase = fastify.ratingsDb.ratingsDatabase ?? {};
+    const ratingsList = Object.values(ratingsDatabase)
+        .map(entry => entry.rating)
+        .sort((a, b) => a - b);
+    if (!ratingsList.length) {
+        reply.code(204);
+        reply.send();
+        return;
+    }
+
+    const nicks = fastify.database
+        .prepare('SELECT DISTINCT lp.nick AS nick FROM replay_lobby_player_link rlpl JOIN lobby_players lp ON lp.id = rlpl.lobby_player_id WHERE rlpl.match_id = @matchId')
+        .all({ matchId }) as { nick: string }[];
+
+    const highlights = nicks
+        .map(row => ratingsDatabase[row.nick]?.rating)
+        .filter((rating): rating is number => typeof rating === "number");
+
+    if (!highlights.length) {
+        reply.code(204);
+        reply.send();
+        return;
+    }
+
+    reply.send(buildDistributionChartData(ratingsList, highlights));
 };
 
 const get_alias_groups = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
@@ -679,6 +725,24 @@ const LocalRatingsController: FastifyPluginCallback = (fastify, _, done) => {
             ...schemaCommon
         }
     }, (request: GetPlayerProfileRequest, reply: FastifyReply) => get_distribution_chart_data(request, reply, fastify));
+
+    fastify.post("/replay-distribution-data", {
+        schema: {
+            body: zodToJsonSchema(ReplayDistributionRequestSchema),
+            response: {
+                200: zodToJsonSchema(DistributionChartDataSchema),
+                204: {
+                    type: 'null',
+                    description: 'No Content'
+                },
+                401: {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, (request: ReplayDistributionRequest, reply: FastifyReply) => get_replay_distribution_chart_data(request, reply, fastify));
 
     fastify.get("/aliases", {
         schema: {
