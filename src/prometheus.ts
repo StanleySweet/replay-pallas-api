@@ -39,12 +39,6 @@ export const ratingsCalculationDuration = new Histogram({
   buckets: [100, 500, 1000, 5000, 10000, 30000],
 });
 
-export const ratingsCalculationErrors = new Counter({
-  name: 'ratings_calculation_errors_total',
-  help: 'Total rating calculation errors',
-  labelNames: ['operation', 'error_type'],
-});
-
 export const playersWithRatingsGauge = new Gauge({
   name: 'players_with_ratings',
   help: 'Number of players with ratings in the system',
@@ -53,17 +47,6 @@ export const playersWithRatingsGauge = new Gauge({
 export const ratingsInDatabase = new Gauge({
   name: 'ratings_in_database',
   help: 'Total number of ratings stored in the database',
-});
-
-// Métriques métier - Users
-export const usersCreatedTotal = new Counter({
-  name: 'users_created_total',
-  help: 'Total users created',
-});
-
-export const usersAuthenticatedTotal = new Counter({
-  name: 'users_authenticated_total',
-  help: 'Total successful authentications',
 });
 
 // Métriques métier - Database

@@ -15,7 +15,6 @@ import { Replays } from "../types/Replay";
 import { mode } from "../Utils";
 import snappy from 'snappy';
 import { LocalRatingsReplay } from "../local-ratings/Replay";
-import { ReplayListItem } from "../types/ReplayListItem";
 import { RawPlayerStatisticsData } from "../types/RawPlayerStatisticsData";
 import { PlayerStatistics } from "../types/PlayerStatistics";
 import { toReplayListItem } from "./helpers/replayListItem";

@@ -7,7 +7,7 @@ import AdmZip, { IZipEntry } from "adm-zip";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { UploadReplayZipResponse, UploadReplayZipResponseSchema } from "../types/UploadReplayZipResponse";
 import { ReplayFileData } from "../types/ReplayFileData";
-import { CommandStatistics, PlayerCommandData, Replay, ReplayDetails, ReplayDetailsSchema, ReplaySchema, Replays, ReplaysSchema, ToDbFormat } from "../types/Replay";
+import { CommandStatistics, PlayerCommandData, Replay, ReplayDetails, ReplayDetailsSchema, Replays, ReplaysSchema, ToDbFormat } from "../types/Replay";
 import { UploadReplayCommandsResponseSchema } from "../types/UploadReplayCommandsResponse";
 import zodToJsonSchema from "zod-to-json-schema";
 import { ReplayMetaData } from "../types/ReplayMetaData";

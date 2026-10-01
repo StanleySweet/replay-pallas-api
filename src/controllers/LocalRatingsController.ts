@@ -119,7 +119,6 @@ const LocalRatingsOptionsPayloadSchema = z.object({
 type Row = z.infer<typeof RowSchema>;
 type CivilizationChartData = z.infer<typeof CivilizationChartDataSchema>;
 type DistributionChartData = z.infer<typeof DistributionChartDataSchema>;
-type AliasGroup = z.infer<typeof AliasGroupSchema>;
 type AliasGroups = z.infer<typeof AliasGroupsSchema>;
 type LocalRatingsOptionsPayload = z.infer<typeof LocalRatingsOptionsPayloadSchema>;
 
