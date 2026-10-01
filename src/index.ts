@@ -225,7 +225,18 @@ server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
     bdb.pragma('synchronous = normal');
     bdb.pragma('temp_store = memory');
     bdb.pragma('mmap_size = 30000000000');
-    bdb.pragma('page_size = 32768');
+    // page_size is NOT set here on purpose. SQLite silently ignores a page_size
+    // change while the database is in WAL mode, so setting it after the pragma
+    // above is a no-op that looks like it works. Changing it requires leaving
+    // WAL, setting the pragma, and VACUUMing, which on the production database
+    // means a multi-minute exclusive write plus a second copy of the file on
+    // disk. That does not belong on the boot path of a 2GB host. Do it as a
+    // deliberate one-time maintenance step instead:
+    //
+    //   PRAGMA journal_mode = DELETE;
+    //   PRAGMA page_size = 32768;
+    //   VACUUM;
+    //   PRAGMA journal_mode = WAL;
 
     await server.ready();
     server.swagger();
