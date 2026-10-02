@@ -45,7 +45,11 @@ function padNumber(number : number) {
 
 const ToDbFormat = (replay: Replay) => {
     const currentDate = new Date((replay.metadata.timestamp ?? 0) * 1000);
-    const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
+    // UTC, not local. metadata.timestamp is an absolute instant, but the local time
+    // getters rendered it in the server's timezone, so the same replay was stored at a
+    // different instant depending on where the API ran - and a match played late in the
+    // UTC day landed on the next calendar date, which is what date filters key on.
+    const formattedDate = `${currentDate.getUTCFullYear()}-${padNumber(currentDate.getUTCMonth() + 1)}-${padNumber(currentDate.getUTCDate())} ${padNumber(currentDate.getUTCHours())}:${padNumber(currentDate.getUTCMinutes())}:${padNumber(currentDate.getUTCSeconds())}`;
 
     return {
         "matchId": replay.metadata.matchID,
