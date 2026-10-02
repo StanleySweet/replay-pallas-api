@@ -201,7 +201,9 @@ server.register(LobbyUserController, { prefix: '/lobby-users' });
 server.register(LocalRatingsController, { prefix: '/local-ratings' });
 server.register(fastifySchedulePlugin);
 
-server.listen({ port: 8080, host: "0.0.0.0" }, async (err, address) => {
+// Port is configurable so the API can be started beside another instance on the same
+    // host. Defaults to 8080, which is what the containers and Apache proxy expect.
+    server.listen({ port: +(process.env.API_PORT ?? 8080), host: "0.0.0.0" }, async (err, address) => {
     if (err) {
         logger.error(err);
         process.exit(1);
