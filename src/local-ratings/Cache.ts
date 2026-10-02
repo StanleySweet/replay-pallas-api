@@ -5,7 +5,9 @@ import { EngineInstance as Engine } from '../types/Engine';
  * It is able to detect whether the database structure has changed, due to installation of a new version of the mod.
  */
 class LocalRatingsCache {
-    version = 6;
+    // Bump to invalidate every cached JSON file. 7: replay `date` is now the UTC calendar
+    // day instead of the host-local one, so the cached replay database must be rebuilt.
+    version = 7;
     replayDatabaseFile: string;
     ratingsDatabaseFile: string;
     historyDatabaseFile: string;

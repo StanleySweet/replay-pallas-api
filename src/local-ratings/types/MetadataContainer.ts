@@ -30,7 +30,11 @@ export class LocalRatingsMetadataContainer {
     timeToString(unixTimeStamp : number) : string
     {
         const currentDate = new Date(unixTimeStamp);
-        return `${this.padNumber(currentDate.getFullYear())}-${this.padNumber(currentDate.getMonth() + 1)}-${this.padNumber(currentDate.getDate())}`;
+        // UTC, not local. This is an absolute instant, and this string is what the replay
+        // list sorts, displays and would filter on, so it must not depend on the host
+        // timezone. The replay details page renders the same instant from metadata.
+        // timestamp directly, so a local rendering here put the two a day apart.
+        return `${currentDate.getUTCFullYear()}-${this.padNumber(currentDate.getUTCMonth() + 1)}-${this.padNumber(currentDate.getUTCDate())}`;
     }
 
     getDate(): string {
