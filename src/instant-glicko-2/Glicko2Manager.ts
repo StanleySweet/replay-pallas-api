@@ -12,6 +12,7 @@ import { Rating } from './Rating';
 import { GameRatingPeriodResults } from './RatingPeriodResults';
 import { logger } from '../logger';
 import { GameResult } from './GameResult';
+import { PlayerData } from '../types/PlayerData';
 
 declare module 'fastify' {
     interface FastifyInstance {
@@ -30,6 +31,44 @@ class PallasGlickoRating {
     "date":string;
 }
 
+
+// PlayerDataSchema is .partial(), so narrow the one field the pairing relies on.
+type RatedPlayer = PlayerData & { NameWithoutRating: string };
+
+/**
+ * Decide which two players a replay actually rates, and which of them won.
+ *
+ * The rebuild query selects replays having exactly two lobby players, but that
+ * only counts humans: it does NOT mean they played against each other. Two
+ * humans on the same team pass that gate while there is no individual result,
+ * so rating one against the other punished a player for playing alongside a
+ * teammate. AI players are also in PlayerData but not in the lobby links, so
+ * the two humans have to be found by filtering rather than by index - the
+ * previous code read playerData[0] and playerData[1] blindly, which happened to
+ * be correct for every replay in the corpus and would stop being correct the
+ * first time a human was not seated first.
+ */
+function getRatedPair(playerData: PlayerData[] | undefined): { winner: RatedPlayer, loser: RatedPlayer } | undefined {
+    const humans = (playerData ?? []).filter((a): a is RatedPlayer => !!a && !a.AI && !!a.NameWithoutRating);
+
+    if (humans.length !== 2)
+        return undefined;
+
+    const [first, second] = humans;
+
+    // Same real team means allies. Team -1 is free-for-all, where they are
+    // opponents. A missing Team cannot prove anything, so it is not excluded.
+    if (first.Team !== undefined && first.Team >= 0 && first.Team === second.Team)
+        return undefined;
+
+    // Neither human won, so whoever lost lost to a computer. There is no human opponent.
+    if (first.State !== "won" && second.State !== "won")
+        return undefined;
+
+    return second.State === "won"
+        ? { winner: second, loser: first }
+        : { winner: first, loser: second };
+}
 
 class Glicko2Manager {
     database: Database;
@@ -71,40 +110,39 @@ class Glicko2Manager {
                 element.creation_date = new Date(element.creation_date as unknown as string);
             const playerData = element.metadata.settings?.PlayerData;
 
-            if (!playerData || !playerData.some(a => a.State === "won"))
+            const rated = getRatedPair(playerData);
+            if (!rated)
                 continue;
 
-            if (playerData[0].NameWithoutRating && playerData[1].NameWithoutRating) {
-                
+            {
+                const winnerData = rated.winner;
+                const loserData = rated.loser;
 
-                const player0Name = playerData[0].NameWithoutRating;
+                const player0Name = winnerData.NameWithoutRating;
                 if (!players.has(player0Name)) {
                     players.set(player0Name, new Rating(Rating.defaultRating, Rating.defaultDeviation, Rating.defaultVolatility, 0, element.creation_date));
-                    playersIds.set(player0Name, playerData[0].LobbyUserId as number);
+                    playersIds.set(player0Name, winnerData.LobbyUserId as number);
                 }
 
                 const gPlayer1: Rating = players.get(player0Name) as Rating;
                 gPlayer1.numberOfResults = 0;
                 gPlayer1.lastRatingPeriodEnd = element.creation_date;
     
-                const player1Name = playerData[1].NameWithoutRating;
+                const player1Name = loserData.NameWithoutRating;
 
                 if (!players.has(player1Name)) {
                     players.set(player1Name, new Rating(Rating.defaultRating, Rating.defaultDeviation, Rating.defaultVolatility, 0, element.creation_date));
-                    playersIds.set(player1Name, playerData[1].LobbyUserId as number);
+                    playersIds.set(player1Name, loserData.LobbyUserId as number);
                 }
 
                 const gPlayer2 = players.get(player1Name) as Rating;
                 gPlayer2.numberOfResults = 0;
                 gPlayer2.lastRatingPeriodEnd = element.creation_date;
 
-                const winner = playerData[1].State === "won" ? gPlayer2 : gPlayer1;
-                const loser = playerData[1].State !== "won" ? gPlayer2 : gPlayer1;
-
                 playersMatchCount.set(player0Name, (playersMatchCount.get(player0Name) ?? 0) + 1);
                 playersMatchCount.set(player1Name, (playersMatchCount.get(player1Name) ?? 0) + 1);
 
-                matches.push(new GameResult(winner, loser, false));
+                matches.push(new GameResult(gPlayer1, gPlayer2, false));
                 const matchList: GameRatingPeriodResults = new GameRatingPeriodResults(matches);
                 this.calculator.updateRatings(matchList, true);
                 for (const [key, value] of players) {
@@ -169,5 +207,6 @@ class Glicko2Manager {
 }
 
 export {
-    Glicko2Manager
+    Glicko2Manager,
+    getRatedPair
 };
