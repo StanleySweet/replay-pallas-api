@@ -29,6 +29,9 @@ function toReplayListItem(replay: LocalRatingsReplay | undefined): ReplayListIte
     const date = typeof replay.date === "string" ? replay.date : (invalidFields.push("date"), "");
     const playerNames = sanitizeStringArray(replay.players, "players", invalidFields);
     const civs = sanitizeStringArray(replay.civs, "civs", invalidFields);
+    // Mod entries carry their version, e.g. "LocalRatings 0.26.1". A date filter spans
+    // engine and mod upgrades, so the list needs to show which ones a replay was played on.
+    const mods = sanitizeStringArray(replay.mods, "mods", invalidFields);
 
     if (invalidFields.length) {
         logger.warn(
@@ -42,7 +45,8 @@ function toReplayListItem(replay: LocalRatingsReplay | undefined): ReplayListIte
         playerNames,
         matchId,
         date,
-        civs
+        civs,
+        mods
     };
 }
 
