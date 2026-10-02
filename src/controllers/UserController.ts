@@ -111,7 +111,10 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
 
     result.graph = get_chart_data(fastify, request.params.id);
 
-    const actual_user: User | undefined = fastify.database.prepare("SELECT id, nick, role FROM users WHERE nick = @nick LIMIT 1").get({ "nick": user.nick }) as User | undefined;
+    // users.nick has no UNIQUE constraint, and the duplicates that exist were registered
+    // before create_user refused a taken nick, so this lookup is genuinely ambiguous. Pin it
+    // to the oldest account instead of taking whichever row SQLite happens to reach first.
+    const actual_user: User | undefined = fastify.database.prepare("SELECT id, nick, role FROM users WHERE nick = @nick ORDER BY id LIMIT 1").get({ "nick": user.nick }) as User | undefined;
 
     user = {
         id: actual_user ? actual_user.id : 0,
@@ -463,6 +466,26 @@ const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastif
 
 const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     try {
+        // POST /users is unauthenticated, so without this anyone could register a second
+        // account under a nick that is already taken (including a different casing of it) and
+        // split that person's replays and permissions across two user rows. users.nick has no
+        // UNIQUE constraint, unlike lobby_players.nick, so nothing below this catches it.
+        //
+        // Only registered accounts count. Plenty of nicks exist in lobby_players for people
+        // who never made an account, and those must stay registrable.
+        //
+        // NOCASE folds ASCII only, which is the whole alphabet 0 A.D. nicks use.
+        const taken = fastify.database
+            .prepare("SELECT id FROM users WHERE nick = @nick COLLATE NOCASE LIMIT 1")
+            .get({ "nick": request.body.nick }) as { id: number } | undefined;
+
+        if (taken) {
+            fastify.log.warn({ nick: request.body.nick }, "registration refused: nick already taken");
+            reply.code(400);
+            reply.send();
+            return;
+        }
+
         fastify.database.prepare(`INSERT INTO users (nick, password, email, role) VALUES(@nick, @password, @email, @role)`).run({
             "nick": request.body.nick,
             "password": request.body.password,

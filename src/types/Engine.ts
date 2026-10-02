@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
-import { Database } from 'better-sqlite3';
+import { Database, Statement } from 'better-sqlite3';
 import { ReplayMetaData } from "./ReplayMetaData";
 import Path from 'path';
 import { uncompressSync } from "snappy";
@@ -39,18 +39,46 @@ class Engine {
         if (!this.database)
             return [];
 
-        const idsString = existingIds.map(id => `'${id}'`).join(',');
+        // The known ids used to be glued into the SQL as a literal NOT IN list. match_id comes
+        // from uploaded replay metadata, so one upload whose matchID contains a quote produced
+        // invalid SQL here and threw. Because update() runs on the boot path, that single upload
+        // broke every subsequent start. A temp table avoids both the injection and the SQLite
+        // host-parameter ceiling.
+        //
+        // better-sqlite3 prepares eagerly and rejects a statement against a table that does not
+        // exist yet, so the staging table has to be created before the statements touching it
+        // are prepared. They are then cached: update() calls this once per batch, and
+        // re-preparing all four on every call is pure overhead.
+        if (!this.stagingStatements) {
+            this.database.exec("CREATE TEMP TABLE IF NOT EXISTS known_match_ids (match_id TEXT PRIMARY KEY);");
+            this.stagingStatements = {
+                clear: this.database.prepare("DELETE FROM known_match_ids;"),
+                insert: this.database.prepare("INSERT OR IGNORE INTO known_match_ids (match_id) VALUES (?);"),
+                select: this.database.prepare(`
+                    SELECT metadata as attribs, match_id as directory
+                    FROM replays
+                    WHERE match_id NOT IN (SELECT match_id FROM known_match_ids)
+                    LIMIT @batchSize
+                    OFFSET @offset;
+                `)
+            };
+        }
 
-        const query = `
-            SELECT metadata as attribs, match_id as directory 
-            FROM replays 
-            WHERE match_id NOT IN (${idsString}) 
-            LIMIT @batchSize 
-            OFFSET @offset;
-        `;
+        const { clear, insert, select } = this.stagingStatements;
+        const fill = this.database.transaction((ids: string[]) => {
+            clear.run();
+            for (const id of ids)
+                insert.run(id);
+        });
 
-        const replays = this.database.prepare(query).all({ "batchSize": batchSize, "offset": offset }) as LocalRatingsMetadataContainer[];
-        return this.ParseReplays(replays);  
+        fill(existingIds);
+
+        const replays = select.all({ "batchSize": batchSize, "offset": offset }) as LocalRatingsMetadataContainer[];
+
+        // Left empty on purpose: the table is scratch space, and anything left behind would
+        // silently hide replays from the next call.
+        clear.run();
+        return this.ParseReplays(replays);
     }
 
     GetReplays(batchSize: number, offset: number): LocalRatingsMetadataContainer[] {
@@ -87,6 +115,14 @@ class Engine {
     }
 
     database: Database | null;
+
+    // Lazily built by GetNewReplays. Held on the instance because it is bound to whichever
+    // database was last passed to SetDataBase; SetDataBase drops it.
+    private stagingStatements: {
+        clear: Statement,
+        insert: Statement,
+        select: Statement
+    } | null = null;
 
     constructor() {
         this.database = null;
@@ -135,6 +171,8 @@ class Engine {
 
     SetDataBase(database: Database): void {
         this.database = database;
+        // The cached statements belong to the previous connection's temp schema.
+        this.stagingStatements = null;
     }
 }
 
