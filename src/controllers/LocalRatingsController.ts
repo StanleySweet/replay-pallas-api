@@ -591,10 +591,15 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
         return;
     }
 
+    // The nicks come out of the local ratings cache, which is built from uploaded replay
+    // metadata, so they are attacker-controlled by any contributor. They used to be
+    // concatenated straight into the IN list, which let a nick containing a quote break
+    // out of it. Bind one parameter per nick instead.
+    const nicks = items.map(a => a[0] as string);
     const users: LatestUser[] = fastify.database.prepare(`SELECT lp.id, lp.nick, (CASE  when u.role IS  Null then 0 else u.role END)
     as role, CASE When u.creation_date is null then lp.creation_date else lp.creation_date End as creation_date FROM lobby_players lp
     Left Join users u on u.nick = lp.nick
-    Where lp.nick in (${items.map(a => "'" + a[0] + "'").join(', ')})`).all() as LatestUser[];
+    Where lp.nick in (${nicks.map(() => "?").join(', ')})`).all(...nicks) as LatestUser[];
 
     // Construct table rows, using the previously created items
     const rows = items.map((x, i): Row => {

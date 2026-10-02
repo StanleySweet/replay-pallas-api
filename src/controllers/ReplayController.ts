@@ -504,8 +504,36 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         else
             replays = [ExtractFolderData(files, zip,)];
 
-        const matchIds: Replays = server.database.prepare('SELECT match_id FROM replays;').all() as Replays;
-        const newReplays = replays.filter((b: Replay) => !matchIds.some((a: Replay) => a.match_id === b.metadata.matchID));
+        // Ask the database only about the match IDs in this upload. It used to pull every
+        // match_id row and then scan that array per uploaded replay, which is O(uploads x
+        // number of stored replays) and grows with the database.
+        const candidateIds = [...new Set(replays
+            .map(b => b.metadata.matchID)
+            .filter((id): id is string => typeof id === "string" && id.length > 0))];
+        const knownIds = new Set<string>();
+        // Chunked because SQLite caps a host parameter count (999 before 3.32, 32766 after).
+        for (let i = 0; i < candidateIds.length; i += 500) {
+            const chunk = candidateIds.slice(i, i + 500);
+            const existing: { match_id: string }[] = server.database
+                .prepare(`SELECT match_id FROM replays WHERE match_id IN (${chunk.map(() => "?").join(', ')});`)
+                .all(...chunk) as { match_id: string }[];
+            for (const row of existing)
+                knownIds.add(row.match_id);
+        }
+
+        // A replay with no matchID cannot be deduplicated or linked, and the insert loop below
+        // skipped it anyway, so filter it out here rather than carrying it further.
+        // Dedup is also applied within the upload: replays.match_id is UNIQUE, so the same
+        // match twice in one zip used to blow up on the constraint and 500 the request.
+        const uploadedIds = new Set<string>();
+        const newReplays = replays.filter((b: Replay) => {
+            const id = b.metadata.matchID;
+            if (!id || knownIds.has(id) || uploadedIds.has(id))
+                return false;
+
+            uploadedIds.add(id);
+            return true;
+        });
         const datas = newReplays.map(a => { return { "matchId": a.metadata.matchID, "playerNames": a.metadata.settings?.PlayerData?.filter(a => a && !a.AI).map(a => a.NameWithoutRating || "") }; });
         const names = new Set<{ name: string, matchId: string }>();
         for (const nameArray of datas) {
