@@ -41,7 +41,7 @@ const get_chart_data = (fastify: FastifyInstance, lobby_user: number): EloGraph 
         "lobby_player_id": lobby_user,
     }) as { "elo": number, "date": string }[];
 
-    let glicko_ranking = fastify.database.prepare("Select elo, date, deviation, volatility, preview_deviation From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
+    let glicko_ranking = fastify.database.prepare("Select elo, date, deviation, volatility, preview_deviation, match_count From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
         "lobby_player_id": lobby_user,
     }) as GlickoElo[];
 
@@ -78,7 +78,8 @@ const get_chart_data = (fastify: FastifyInstance, lobby_user: number): EloGraph 
             date: formattedDate,
             volatility: 0.09,
             preview_deviation: 350,
-            deviation: 350
+            deviation: 350,
+            match_count: 0
         };
         glicko_ranking = [current_glicko_elo];
     }

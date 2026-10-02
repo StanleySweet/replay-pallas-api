@@ -32,6 +32,7 @@ const GlickoEloSchema = z.object({
     deviation: z.number(),
     volatility: z.number(),
     preview_deviation: z.number(),
+    match_count: z.number(),
     date: z.string(),
 });
 
