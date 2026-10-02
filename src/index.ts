@@ -202,12 +202,15 @@ server.register(LocalRatingsController, { prefix: '/local-ratings' });
 server.register(fastifySchedulePlugin);
 
 // Port is configurable so the API can be started beside another instance on the same
-    // host. Defaults to 8080, which is what the containers and Apache proxy expect.
-    server.listen({ port: +(process.env.API_PORT ?? 8080), host: "0.0.0.0" }, async (err, address) => {
-    if (err) {
-        logger.error(err);
-        process.exit(1);
-    }
+// host. Defaults to 8080, which is what the containers and Apache proxy expect.
+//
+// The port is opened LAST, after the local ratings and Glicko databases are ready. That
+// work is synchronous and CPU-bound -- a cold local-ratings cache is roughly 55s on this
+// data set -- and while it runs the event loop cannot answer anything. Listening first
+// therefore accepted connections that then hung, which is the worst of both: the socket
+// looks healthy to a TCP probe while no request is ever served. A refused connection is
+// what the Docker healthcheck and deploy.sh already retry on.
+const start = async () => {
     sqlite3.verbose();
     const db: Database = await open({
         "filename": "dist/cache/replay-pallas.sqlite3",
@@ -268,4 +271,11 @@ server.register(fastifySchedulePlugin);
     server.ratingsDb = ratingsDb;
     server.replayDb = replayDb;
     server.aliasDb = aliasDb;
+
+    await server.listen({ port: +(process.env.API_PORT ?? 8080), host: "0.0.0.0" });
+};
+
+start().catch((err) => {
+    logger.error(err);
+    process.exit(1);
 });

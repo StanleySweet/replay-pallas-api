@@ -103,6 +103,9 @@ function init_LocalRatings() : LocalRatingsState {
     {
         replayDB.rebuild();
         ratingsDB.rebuild();
+        // Recorded only now: both rebuilds persist their own cache file before returning, so the
+        // version can never claim a cache is current while part of it is still stale.
+        replayDB.cache.markAsCurrent();
     }
     else
     {
