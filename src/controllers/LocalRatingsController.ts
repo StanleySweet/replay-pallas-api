@@ -81,6 +81,8 @@ const DistributionChartDataSchema = z.object({
     showMean: z.boolean(),
     currentRating: z.number(),
     playerCount: z.number(),
+    /** Rating of the caller, so the chart can draw their own standing. */
+    viewerRating: z.nullable(z.number()),
 });
 
 const ReplayDistributionRequestSchema = z.object({ matchId: z.string() });
@@ -387,10 +389,10 @@ const get_distribution_chart_data = (request: GetPlayerProfileRequest, reply: Fa
         return;
     }
 
-    reply.send(buildDistributionChartData(ratingsList, [playerEntry.rating]));
+    reply.send(buildDistributionChartData(ratingsList, [playerEntry.rating], ratingsDatabase[request.claims?.nick ?? ""]?.rating ?? null));
 };
 
-const buildDistributionChartData = (ratingsList: number[], highlights: number[]): DistributionChartData => {
+const buildDistributionChartData = (ratingsList: number[], highlights: number[], viewerRating: number | null = null): DistributionChartData => {
     const configOptions = new LocalRatingsDistributionChartOptions();
     const min = ratingsList[0];
     const max = ratingsList[ratingsList.length - 1];
@@ -409,7 +411,8 @@ const buildDistributionChartData = (ratingsList: number[], highlights: number[])
             mean: configOptions.showmean ? min : null,
             showMean: configOptions.showmean,
             currentRating: highlights[0] ?? min,
-            playerCount: ratingsList.length
+            playerCount: ratingsList.length,
+            viewerRating
         };
     }
 
@@ -444,7 +447,8 @@ const buildDistributionChartData = (ratingsList: number[], highlights: number[])
         mean: configOptions.showmean ? getMean_LocalRatings(ratingsList) : null,
         showMean: configOptions.showmean,
         currentRating: highlights[0] ?? min,
-        playerCount: ratingsList.length
+        playerCount: ratingsList.length,
+        viewerRating
     };
 };
 
@@ -486,7 +490,7 @@ const get_replay_distribution_chart_data = (request: ReplayDistributionRequest, 
         return;
     }
 
-    reply.send(buildDistributionChartData(ratingsList, highlights));
+    reply.send(buildDistributionChartData(ratingsList, highlights, ratingsDatabase[request.claims?.nick ?? ""]?.rating ?? null));
 };
 
 const get_alias_groups = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
