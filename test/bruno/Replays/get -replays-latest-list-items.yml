@@ -1,0 +1,77 @@
+info:
+  name: get /replays/latest-list-items
+  type: http
+  seq: 6
+  tags:
+    - Replays
+
+http:
+  method: GET
+  url: "{{baseUrl}}/replays/latest-list-items"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/replays/latest-list-items"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          [
+            {
+              "mapName": "",
+              "playerNames": [],
+              "civs": [],
+              "matchId": "",
+              "date": "",
+              "mods": []
+            }
+          ]
+  - name: 204 Response
+    description: No Content
+    request:
+      url: "{{baseUrl}}/replays/latest-list-items"
+      method: GET
+    response:
+      status: 204
+      statusText: No Content
+      body:
+        type: text
+        data: ""
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/replays/latest-list-items"
+      method: GET
+    response:
+      status: 401
+      statusText: Unauthorized
+      body:
+        type: text
+        data: ""
+  - name: 403 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/replays/latest-list-items"
+      method: GET
+    response:
+      status: 403
+      statusText: Forbidden
+      body:
+        type: text
+        data: ""

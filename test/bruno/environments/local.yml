@@ -1,0 +1,5 @@
+vars:
+  baseUrl: http://localhost:8080
+  # Paste the token returned by POST /users/token here. It is sent as the
+  # Authorization header by every request in the collection.
+  apiKey: ""

@@ -1,0 +1,53 @@
+info:
+  name: post /local-ratings/rebuild-database
+  type: http
+  seq: 13
+  tags:
+    - Local_Ratings
+
+http:
+  method: POST
+  url: "{{baseUrl}}/local-ratings/rebuild-database"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Everything is fine.
+    request:
+      url: "{{baseUrl}}/local-ratings/rebuild-database"
+      method: POST
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
+  - name: 204 Response
+    description: No Content
+    request:
+      url: "{{baseUrl}}/local-ratings/rebuild-database"
+      method: POST
+    response:
+      status: 204
+      statusText: No Content
+      body:
+        type: text
+        data: ""
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/local-ratings/rebuild-database"
+      method: POST
+    response:
+      status: 401
+      statusText: Unauthorized
+      body:
+        type: text
+        data: ""

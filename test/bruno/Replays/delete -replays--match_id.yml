@@ -1,0 +1,54 @@
+info:
+  name: delete /replays/:match_id
+  type: http
+  seq: 11
+  tags:
+    - Replays
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/replays/:match_id"
+  params:
+    - name: match_id
+      value: ""
+      type: path
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Nothing
+    request:
+      url: "{{baseUrl}}/replays/:match_id"
+      method: DELETE
+      params:
+        - name: match_id
+          value: ""
+          type: path
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
+  - name: 403 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/replays/:match_id"
+      method: DELETE
+      params:
+        - name: match_id
+          value: ""
+          type: path
+    response:
+      status: 403
+      statusText: Forbidden
+      body:
+        type: text
+        data: ""

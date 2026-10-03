@@ -9,7 +9,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, sortString_LocalRatings, update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import { z } from 'zod';
 import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
-import { LatestUser, LatestUserSchema } from "../types/User";
+import { LatestUser, LatestUserSchema, GlickoElo } from "../types/User";
 import { LocalRatingsEvolutionChartOptions } from "../local-ratings/EvolutionChartOptions";
 import { LocalRatingsDistributionChartOptions } from "../local-ratings/DistributionChartOptions";
 import { LocalRatingsSettingsManager } from "../local-ratings/Settings";
@@ -35,6 +35,10 @@ const PlayerProfileSchema = z.object({
     "averagePerformanceText": z.string(),
     "performanceAverageDeviationText": z.string(),
     "performanceStandardDeviationText": z.string(),
+    "glickoElo": z.number().nullable(),
+    "glickoDeviation": z.number().nullable(),
+    "glickoMatchCount": z.number().nullable(),
+    "gameElo": z.number().nullable(),
 });
 
 const SeriesDataSchema = z.object({
@@ -648,6 +652,16 @@ const get_player_profile = async (request: GetPlayerProfileRequest, reply: Fasti
     const performanceAverageDeviation = getAvd_LocalRatings(singleGamesRatings, currentRating);
     const performanceStandardDeviation = getStd_LocalRatings(singleGamesRatings, currentRating);
 
+    // Glicko 2 is tracked per lobby player, the local ratings per nick, so the
+    // two only meet through lobby_players.nick. Players without a rated match
+    // yet have no row at all.
+    const glicko = fastify.database.prepare('SELECT elo, deviation, match_count FROM glicko2_rankings Where lobby_player_id = (SELECT id FROM lobby_players Where nick = @nick) Order By date desc, id desc Limit 1;').get({ "nick": player }) as GlickoElo | undefined;
+
+    // The in-game ladder rating is a different number from the glicko one above:
+    // UserController defaults it to 1200 for players who never ranked, which we
+    // do not do here because a fabricated starting rating reads as a real one.
+    const gameRanking = fastify.database.prepare('SELECT elo FROM lobby_ranking_history Where lobby_player_id = (SELECT id FROM lobby_players Where nick = @nick) Order By date desc, id desc Limit 1;').get({ "nick": player }) as { "elo": number } | undefined;
+
     const captions: PlayerProfile = {
         "rankText": { "rank": rank, "players": players },
         "currentRatingText": formatRating_LocalRatings(currentRating),
@@ -661,7 +675,11 @@ const get_player_profile = async (request: GetPlayerProfileRequest, reply: Fasti
         "worstPerformanceText": formatRating_LocalRatings(Math.min(...singleGamesRatings)),
         "averagePerformanceText": formatRating_LocalRatings(currentRating),
         "performanceAverageDeviationText": formatRating_LocalRatings(performanceAverageDeviation),
-        "performanceStandardDeviationText": formatRating_LocalRatings(performanceStandardDeviation)
+        "performanceStandardDeviationText": formatRating_LocalRatings(performanceStandardDeviation),
+        "glickoElo": glicko?.elo ?? null,
+        "glickoDeviation": glicko?.deviation ?? null,
+        "glickoMatchCount": glicko?.match_count ?? null,
+        "gameElo": gameRanking?.elo ?? null
     };
 
     reply.send(captions);

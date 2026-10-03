@@ -1,0 +1,38 @@
+info:
+  name: post /replays/upload-zip
+  type: http
+  seq: 1
+  tags:
+    - Replays
+
+http:
+  method: POST
+  url: "{{baseUrl}}/replays/upload-zip"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/replays/upload-zip"
+      method: POST
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "Success": false,
+            "AddedReplays": []
+          }

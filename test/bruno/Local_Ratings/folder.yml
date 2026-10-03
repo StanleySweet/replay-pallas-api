@@ -1,0 +1,6 @@
+info:
+  name: Local_Ratings
+  type: folder
+
+request:
+  auth: inherit

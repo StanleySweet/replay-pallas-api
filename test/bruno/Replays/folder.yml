@@ -1,0 +1,6 @@
+info:
+  name: Replays
+  type: folder
+
+request:
+  auth: inherit

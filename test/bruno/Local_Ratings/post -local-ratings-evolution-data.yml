@@ -1,0 +1,100 @@
+info:
+  name: post /local-ratings/evolution-data
+  type: http
+  seq: 3
+  tags:
+    - Local_Ratings
+
+http:
+  method: POST
+  url: "{{baseUrl}}/local-ratings/evolution-data"
+  body:
+    type: json
+    data: |-
+      {
+        "player": "",
+        "rank": 0,
+        "players": 0
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/local-ratings/evolution-data"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "player": "",
+            "rank": 0,
+            "players": 0
+          }
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "series": [
+              [
+                {
+                  "x": 0,
+                  "y": 0
+                }
+              ]
+            ],
+            "colors": [],
+            "legends": []
+          }
+  - name: 204 Response
+    description: No Content
+    request:
+      url: "{{baseUrl}}/local-ratings/evolution-data"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "player": "",
+            "rank": 0,
+            "players": 0
+          }
+    response:
+      status: 204
+      statusText: No Content
+      body:
+        type: text
+        data: ""
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/local-ratings/evolution-data"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "player": "",
+            "rank": 0,
+            "players": 0
+          }
+    response:
+      status: 401
+      statusText: Unauthorized
+      body:
+        type: text
+        data: ""

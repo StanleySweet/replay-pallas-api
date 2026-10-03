@@ -39,7 +39,7 @@ server.register(cors, {
 /* eslint-disable */
 server.register(multipart)
 server.register(rateLimit, {
-    max: 100,
+    max: 1000,
     timeWindow: '15 minutes'
 })
 server.register(fastifySwagger, {
@@ -79,7 +79,7 @@ server.register(fastifySwaggerUi, {
 
 async function setupAuthent() {
     server.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
-        if (request.url.startsWith("/users/token") || (request.url === "/users/" && request.method === "POST") || request.url.startsWith("/swagger/ui") || request.url === "/metrics")
+        if (request.url.startsWith("/users/token") || (request.url === "/users/" && request.method === "POST") || request.url.startsWith("/swagger/ui") || request.url === "/swagger/json" || request.url === "/metrics")
             return;
 
         const token = request.headers.authorization?.replace("Bearer ", "") as string;
@@ -89,15 +89,32 @@ async function setupAuthent() {
             return;
         }
 
-        const { payload } = await jose.jwtVerify<PallasTokenPayload>(token, JOSE_SECRET, {
-            issuer: 'https://replay-pallas-api.wildfiregames.ovh',
-            audience: 'https://replay-pallas-api.wildfiregames.ovh',
-        })
+        // An expired or tampered token is a failed authentication, not a server
+        // error: jwtVerify throws, and letting it escape answered 500.
+        let payload: PallasTokenPayload;
+        try {
+            ({ payload } = await jose.jwtVerify<PallasTokenPayload>(token, JOSE_SECRET, {
+                issuer: 'https://replay-pallas-api.wildfiregames.ovh',
+                audience: 'https://replay-pallas-api.wildfiregames.ovh',
+            }));
+        }
+        catch {
+            reply.code(401);
+            reply.send();
+            return;
+        }
 
         request.claims = payload;
     });
 }
 setupAuthent();
+
+// The installed @fastify/swagger-ui is the legacy v1, which cannot serve the
+// spec itself, so the Swagger UI has nothing to render. One route publishes the
+// contract, which is also what the API smoke test and the Bruno collection read.
+server.get('/swagger/json', async () => {
+    return server.swagger();
+});
 
 // Prometheus metrics hooks
 server.addHook('onRequest', async (request: FastifyRequest) => {

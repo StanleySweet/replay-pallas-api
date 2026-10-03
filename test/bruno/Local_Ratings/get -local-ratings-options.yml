@@ -1,0 +1,72 @@
+info:
+  name: get /local-ratings/options
+  type: http
+  seq: 8
+  tags:
+    - Local_Ratings
+
+http:
+  method: GET
+  url: "{{baseUrl}}/local-ratings/options"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/local-ratings/options"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "categories": [
+              {
+                "label": "",
+                "tooltip": "",
+                "options": [
+                  {
+                    "type": "",
+                    "label": "",
+                    "tooltip": "",
+                    "config": "",
+                    "val": "",
+                    "min": 0,
+                    "max": 0,
+                    "dependencies": [],
+                    "list": [
+                      {
+                        "value": "",
+                        "label": ""
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "values": {}
+          }
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/local-ratings/options"
+      method: GET
+    response:
+      status: 401
+      statusText: Unauthorized
+      body:
+        type: text
+        data: ""

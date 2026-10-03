@@ -1,0 +1,54 @@
+info:
+  name: get /replays/rebuild-lobby-rank-history
+  type: http
+  seq: 8
+  tags:
+    - Replays
+
+http:
+  method: GET
+  url: "{{baseUrl}}/replays/rebuild-lobby-rank-history"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/replays/rebuild-lobby-rank-history"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          [
+            {
+              "id": 0,
+              "match_id": "",
+              "lobby_player_id": 0,
+              "elo": 0,
+              "date": ""
+            }
+          ]
+  - name: 403 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/replays/rebuild-lobby-rank-history"
+      method: GET
+    response:
+      status: 403
+      statusText: Forbidden
+      body:
+        type: text
+        data: ""

@@ -1,0 +1,81 @@
+info:
+  name: post /users/set-permissions
+  type: http
+  seq: 7
+  tags:
+    - Users
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/set-permissions"
+  body:
+    type: json
+    data: |-
+      {
+        "id": 0,
+        "role": 0
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: No Content
+    request:
+      url: "{{baseUrl}}/users/set-permissions"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "id": 0,
+            "role": 0
+          }
+    response:
+      status: 200
+      statusText: OK
+      body:
+        type: text
+        data: ""
+  - name: 204 Response
+    description: No Content
+    request:
+      url: "{{baseUrl}}/users/set-permissions"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "id": 0,
+            "role": 0
+          }
+    response:
+      status: 204
+      statusText: No Content
+      body:
+        type: text
+        data: ""
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/users/set-permissions"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "id": 0,
+            "role": 0
+          }
+    response:
+      status: 401
+      statusText: Unauthorized
+      body:
+        type: text
+        data: ""

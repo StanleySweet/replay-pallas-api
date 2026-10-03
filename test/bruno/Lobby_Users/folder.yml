@@ -1,0 +1,6 @@
+info:
+  name: Lobby_Users
+  type: folder
+
+request:
+  auth: inherit

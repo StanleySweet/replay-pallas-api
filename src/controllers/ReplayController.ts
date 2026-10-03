@@ -588,7 +588,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         for (const replay of newReplays) {
             if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a) && UploadReplayToDatabase(replay, server)) {
                 // Add a link so users can delete the replays they uploaded
-                server.database.prepare("Insert Into replay_user_link (user_id, match_id) Values (@user_id, @matchId);").run({ "user_id": request.claims?.id, "matchId": replay.metadata.matchID });
+                server.database.prepare("Insert Or Ignore Into replay_user_link (user_id, match_id) Values (@user_id, @matchId);").run({ "user_id": request.claims?.id, "matchId": replay.metadata.matchID });
                 response.AddedReplays.push(replay.metadata.matchID);
                 replaysUploadedTotal.inc();
             }

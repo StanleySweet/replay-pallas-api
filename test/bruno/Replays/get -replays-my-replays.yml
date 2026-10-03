@@ -1,0 +1,111 @@
+info:
+  name: get /replays/my-replays
+  type: http
+  seq: 13
+  tags:
+    - Replays
+
+http:
+  method: GET
+  url: "{{baseUrl}}/replays/my-replays"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/replays/my-replays"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          [
+            {
+              "metadata": {
+                "matchID": "",
+                "timestamp": 0,
+                "mapPreview": "",
+                "playerStates": [],
+                "previewImage": "",
+                "mods": "",
+                "settings": {
+                  "MatchDuration": 0,
+                  "NbTurns": 0,
+                  "Biome": "",
+                  "RatingEnabled": false,
+                  "LockTeams": false,
+                  "Seed": "",
+                  "StartingResources": 0,
+                  "PopulationCap": 0,
+                  "WorldPopulation": 0,
+                  "WorldPopulationCap": 0,
+                  "RevealMap": false,
+                  "ExploreMap": false,
+                  "Size": 0,
+                  "Name": "",
+                  "CheatsEnabled": false,
+                  "Nomad": false,
+                  "mapName": "",
+                  "PlayerData": [
+                    {
+                      "AI": "",
+                      "Name": "",
+                      "NameWithoutRating": "",
+                      "Color": "",
+                      "Team": 0,
+                      "Civ": "",
+                      "AverageCPM": 0,
+                      "State": "",
+                      "LobbyUserId": 0,
+                      "Commands": [
+                        {
+                          "type": ""
+                        }
+                      ],
+                      "SecondMostUsedCmd": "",
+                      "MostUsedCmd": ""
+                    }
+                  ]
+                },
+                "engine_version": ""
+              },
+              "filedata": "",
+              "match_id": "",
+              "creation_date": ""
+            }
+          ]
+  - name: 204 Response
+    description: No Content
+    request:
+      url: "{{baseUrl}}/replays/my-replays"
+      method: GET
+    response:
+      status: 204
+      statusText: No Content
+      body:
+        type: text
+        data: ""
+  - name: 403 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/replays/my-replays"
+      method: GET
+    response:
+      status: 403
+      statusText: Forbidden
+      body:
+        type: text
+        data: ""

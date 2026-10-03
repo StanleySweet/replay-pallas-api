@@ -1,0 +1,61 @@
+info:
+  name: get /replays/:matchId/zip
+  type: http
+  seq: 2
+  tags:
+    - Replays
+
+http:
+  method: GET
+  url: "{{baseUrl}}/replays/:matchId/zip"
+  params:
+    - name: matchId
+      value: ""
+      type: path
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/replays/:matchId/zip"
+      method: GET
+      params:
+        - name: matchId
+          value: ""
+          type: path
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "Success": false,
+            "AddedReplay": ""
+          }
+  - name: 403 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/replays/:matchId/zip"
+      method: GET
+      params:
+        - name: matchId
+          value: ""
+          type: path
+    response:
+      status: 403
+      statusText: Forbidden
+      body:
+        type: text
+        data: ""

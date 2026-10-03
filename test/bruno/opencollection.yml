@@ -1,0 +1,22 @@
+opencollection: 1.0.0
+
+info:
+  name: Replay Pallas API
+  version: "1"
+
+request:
+  auth:
+    type: apikey
+    key: Authorization
+    value: "{{apiKey}}"
+    placement: header
+
+docs:
+  content: Replay Pallas API Documentation
+  type: text/markdown
+bundled: false
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git

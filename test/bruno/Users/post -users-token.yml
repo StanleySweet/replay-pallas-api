@@ -1,0 +1,73 @@
+info:
+  name: post /users/token
+  type: http
+  seq: 4
+  tags:
+    - Users
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/token"
+  body:
+    type: json
+    data: |-
+      {
+        "email": "",
+        "password": ""
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/users/token"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "email": "",
+            "password": ""
+          }
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          {
+            "role": 0,
+            "token": "",
+            "id": 0,
+            "nick": "",
+            "expires_in": 0
+          }
+  - name: 204 Response
+    description: No Content
+    request:
+      url: "{{baseUrl}}/users/token"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "email": "",
+            "password": ""
+          }
+    response:
+      status: 204
+      statusText: No Content
+      body:
+        type: text
+        data: ""

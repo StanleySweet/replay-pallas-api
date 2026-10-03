@@ -1,0 +1,76 @@
+info:
+  name: post /users/
+  type: http
+  seq: 1
+  tags:
+    - Users
+
+http:
+  method: POST
+  url: "{{baseUrl}}/users/"
+  body:
+    type: json
+    data: |-
+      {
+        "password": "",
+        "email": "",
+        "nick": ""
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 201 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/users/"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "password": "",
+            "email": "",
+            "nick": ""
+          }
+    response:
+      status: 201
+      statusText: Created
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          [
+            {
+              "id": 0,
+              "nick": "",
+              "role": 0
+            }
+          ]
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/users/"
+      method: POST
+      body:
+        type: json
+        data: |-
+          {
+            "password": "",
+            "email": "",
+            "nick": ""
+          }
+    response:
+      status: 401
+      statusText: Unauthorized
+      body:
+        type: text
+        data: ""

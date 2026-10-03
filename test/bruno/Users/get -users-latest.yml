@@ -1,0 +1,64 @@
+info:
+  name: get /users/latest
+  type: http
+  seq: 3
+  tags:
+    - Users
+
+http:
+  method: GET
+  url: "{{baseUrl}}/users/latest"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+examples:
+  - name: 200 Response
+    description: Default Response
+    request:
+      url: "{{baseUrl}}/users/latest"
+      method: GET
+    response:
+      status: 200
+      statusText: OK
+      headers:
+        - name: Content-Type
+          value: application/json
+      body:
+        type: json
+        data: |-
+          [
+            {
+              "id": 0,
+              "nick": "",
+              "role": 0,
+              "creation_date": ""
+            }
+          ]
+  - name: 204 Response
+    description: No Content
+    request:
+      url: "{{baseUrl}}/users/latest"
+      method: GET
+    response:
+      status: 204
+      statusText: No Content
+      body:
+        type: text
+        data: ""
+  - name: 401 Response
+    description: Unauthorized
+    request:
+      url: "{{baseUrl}}/users/latest"
+      method: GET
+    response:
+      status: 401
+      statusText: Unauthorized
+      body:
+        type: text
+        data: ""
