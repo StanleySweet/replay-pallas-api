@@ -851,8 +851,9 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         // Only the uploader of a replay (or an administrator) may delete it.
         // Without this check any contributor could delete any replay by its match ID.
+        // user_id is a TEXT column and 866 legacy rows hold "47.0"; cast so an exact match on the id still finds them.
         const isAdministrator = request.claims?.role === EUserRole.ADMINISTRATOR;
-        const ownsReplay = !!server.database.prepare("Select 1 From replay_user_link Where match_id = @match_id and user_id = @user_id LIMIT 1;").get({
+        const ownsReplay = !!server.database.prepare("Select 1 From replay_user_link Where match_id = @match_id and cast(user_id as integer) = @user_id LIMIT 1;").get({
             "match_id": request.params.match_id,
             "user_id": request.claims?.id
         });
