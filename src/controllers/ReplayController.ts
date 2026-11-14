@@ -849,22 +849,39 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        server.database.prepare("Delete From replay_user_link Where match_id = @match_id and user_id = @user_id;").run({
+        // Only the uploader of a replay (or an administrator) may delete it.
+        // Without this check any contributor could delete any replay by its match ID.
+        const isAdministrator = request.claims?.role === EUserRole.ADMINISTRATOR;
+        const ownsReplay = !!server.database.prepare("Select 1 From replay_user_link Where match_id = @match_id and user_id = @user_id LIMIT 1;").get({
             "match_id": request.params.match_id,
             "user_id": request.claims?.id
         });
 
-        server.database.prepare("Delete From lobby_ranking_history Where match_id = @match_id;").run({
-            "match_id": request.params.match_id,
-        });
+        if (!ownsReplay && !isAdministrator) {
+            reply.code(403);
+            reply.send();
+            return;
+        }
 
-        server.database.prepare("Delete From replay_lobby_player_link Where match_id = @match_id;").run({
-            "match_id": request.params.match_id,
-        });
+        // All or nothing, so a failure cannot leave a half-deleted replay behind.
+        server.database.transaction(() => {
+            // An administrator removes the replay for everyone, so all uploader links go.
+            server.database.prepare("Delete From replay_user_link Where match_id = @match_id;").run({
+                "match_id": request.params.match_id
+            });
 
-        server.database.prepare("Delete From replays Where match_id = @match_id;").run({
-            "match_id": request.params.match_id
-        });
+            server.database.prepare("Delete From lobby_ranking_history Where match_id = @match_id;").run({
+                "match_id": request.params.match_id,
+            });
+
+            server.database.prepare("Delete From replay_lobby_player_link Where match_id = @match_id;").run({
+                "match_id": request.params.match_id,
+            });
+
+            server.database.prepare("Delete From replays Where match_id = @match_id;").run({
+                "match_id": request.params.match_id
+            });
+        })();
 
         reply.code(200);
         reply.send();
