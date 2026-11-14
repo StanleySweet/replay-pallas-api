@@ -851,9 +851,8 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         // Only the uploader of a replay (or an administrator) may delete it.
         // Without this check any contributor could delete any replay by its match ID.
-        // user_id is a TEXT column and 866 legacy rows hold "47.0"; cast so an exact match on the id still finds them.
         const isAdministrator = request.claims?.role === EUserRole.ADMINISTRATOR;
-        const ownsReplay = !!server.database.prepare("Select 1 From replay_user_link Where match_id = @match_id and cast(user_id as integer) = @user_id LIMIT 1;").get({
+        const ownsReplay = !!server.database.prepare("Select 1 From replay_user_link Where match_id = @match_id and user_id = @user_id LIMIT 1;").get({
             "match_id": request.params.match_id,
             "user_id": request.claims?.id
         });
@@ -864,25 +863,20 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        // All or nothing, so a failure cannot leave a half-deleted replay behind.
-        server.database.transaction(() => {
-            // An administrator removes the replay for everyone, so all uploader links go.
-            server.database.prepare("Delete From replay_user_link Where match_id = @match_id;").run({
-                "match_id": request.params.match_id
-            });
+        // The uploader links, player links, ranking history and local-ratings cache row all
+        // cascade from the replay (migrations/012 and 013).
+        server.database.prepare("Delete From replays Where match_id = @match_id;").run({
+            "match_id": request.params.match_id
+        });
 
-            server.database.prepare("Delete From lobby_ranking_history Where match_id = @match_id;").run({
-                "match_id": request.params.match_id,
-            });
-
-            server.database.prepare("Delete From replay_lobby_player_link Where match_id = @match_id;").run({
-                "match_id": request.params.match_id,
-            });
-
-            server.database.prepare("Delete From replays Where match_id = @match_id;").run({
-                "match_id": request.params.match_id
-            });
-        })();
+        // Drop it from memory and recompute the ratings, so a deleted replay stops counting at once.
+        server.replayDb.delete(request.params.match_id);
+        server.ratingsDb.rebuild();
+        update_LocalRatings({
+            "ratingsDb": server.ratingsDb,
+            "replayDb": server.replayDb,
+            "aliasDb": server.aliasDb,
+        });
 
         reply.code(200);
         reply.send();

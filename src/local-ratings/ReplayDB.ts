@@ -30,11 +30,9 @@ class LocalRatingsReplayDB {
         this.cache.save("replayDatabase", this.minifier.minifyReplayDatabase(this.replayDatabase));
     }
 
+    // Only the in-memory copy: the cache row goes with the replay (ON DELETE CASCADE, migrations/013).
     delete(matchId: string) {
-        if (matchId in this.replayDatabase) {
-            delete this.replayDatabase[matchId];
-            this.save();
-        }
+        delete this.replayDatabase[matchId];
     }
 
     rebuild() {
@@ -72,7 +70,6 @@ class LocalRatingsReplayDB {
 
     update(): LocalRatingsReplayDatabase {
         const timer = databaseRebuildDuration.startTimer({ database_type: 'replay-update' });
-        this.load();
         let count = 0;
         let offset = 0;
         let hasMoreData = true;
@@ -102,7 +99,7 @@ class LocalRatingsReplayDB {
         logger.info(`Found ${offset} new replays. Added ${count} valid new replay(s) to the replay database.`);
         databaseRebuildsTotal.labels('replay-update').inc();
         timer();
-        this.save();
+        this.cache.merge("replayDatabase", this.minifier.minifyReplayDatabase(newReplayDatabase));
 
         return newReplayDatabase;
     }

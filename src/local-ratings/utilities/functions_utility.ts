@@ -99,11 +99,13 @@ function init_LocalRatings() : LocalRatingsState {
     const replayDB = new LocalRatingsReplayDB(cache, minifier);
     const ratingsDB = new LocalRatingsRatingsDB(cache, minifier);
     const alias = new LocalRatingsAliasManager(cache);
+    // Aliases are not derived from replays, so they are read in every case; merge() no longer reloads them.
+    alias.load();
     if (replayDB.cache.isUpdateRequired())
     {
         replayDB.rebuild();
         ratingsDB.rebuild();
-        // Recorded only now: both rebuilds persist their own cache file before returning, so the
+        // Recorded only now: both rebuilds persist their own cache before returning, so the
         // version can never claim a cache is current while part of it is still stale.
         replayDB.cache.markAsCurrent();
     }
@@ -133,7 +135,6 @@ function update_LocalRatings(state: LocalRatingsState)
 
     state.aliasDb.merge(state.ratingsDb.ratingsDatabase, undefined);
     state.aliasDb.merge(undefined, state.ratingsDb.historyDatabase);
-    state.aliasDb.load();
 }
 
 function padNumber(number : number) {

@@ -1,3 +1,5 @@
+import { renameSync } from 'fs';
+import { Database } from 'better-sqlite3';
 import { EngineInstance as Engine } from '../types/Engine';
 
 // Where the cache version is recorded. local_ratings_configuration already exists
@@ -6,61 +8,28 @@ import { EngineInstance as Engine } from '../types/Engine';
 const VERSION_SECTION = "localratings";
 const VERSION_KEY = "cacheversion";
 
+// One table per cache (migrations/013). Names are constants, never user input, so they
+// are interpolated into the SQL.
+const TABLES: { [tag: string]: { table: string, key: string, legacyFile: string } } = {
+    "replayDatabase": { "table": "local_replays", "key": "match_id", "legacyFile": "dist/cache/replayDatabase.json" },
+    "ratingsDatabase": { "table": "local_ratings", "key": "player", "legacyFile": "dist/cache/ratingsDatabase.json" },
+    "historyDatabase": { "table": "local_history", "key": "player", "legacyFile": "dist/cache/historyDatabase.json" },
+    "aliasesDatabase": { "table": "local_aliases", "key": "alias_group", "legacyFile": "dist/cache/aliasesDatabase.json" },
+};
+
+type Rows = { [key: string]: unknown };
+
 /**
- * This class is responsible for interactions with cache files, like loading or saving.
+ * This class is responsible for interactions with the local-ratings caches, like loading or saving.
  * It is able to detect whether the database structure has changed, due to installation of a new version of the mod.
  */
 class LocalRatingsCache {
-    // Bump to invalidate every cached JSON file. 7: replay `date` is now the UTC calendar
+    // Bump to invalidate every cache. 7: replay `date` is now the UTC calendar
     // day instead of the host-local one, so the cached replay database must be rebuilt.
     version = 7;
-    replayDatabaseFile: string;
-    ratingsDatabaseFile: string;
-    historyDatabaseFile: string;
-    aliasesDatabaseFile: string;
-    cacheVersionFile: string;
-
-    constructor() {
-        const path = "dist/cache";
-        this.replayDatabaseFile = path + "/replayDatabase.json";
-        this.ratingsDatabaseFile = path + "/ratingsDatabase.json";
-        this.historyDatabaseFile = path + "/historyDatabase.json";
-        this.aliasesDatabaseFile = path + "/aliasesDatabase.json";
-        this.cacheVersionFile = path + "/cacheVersion.json";
-
-        this.createCacheFilesIfNotExist();
-    }
-
-    createCacheFilesIfNotExist() {
-        [
-            this.replayDatabaseFile,
-            this.ratingsDatabaseFile,
-            this.historyDatabaseFile,
-            this.aliasesDatabaseFile
-        ]
-            .filter(x => !Engine.FileExists(x))
-            .forEach(x => Engine.WriteJSONFile(x, {}));
-    }
-
-    tagToFilename(tag: string) {
-        return (tag == "replayDatabase") ?
-            this.replayDatabaseFile :
-            (tag == "ratingsDatabase") ?
-                this.ratingsDatabaseFile :
-                (tag == "historyDatabase") ?
-                    this.historyDatabaseFile :
-                    (tag == "aliasesDatabase") ?
-                        this.aliasesDatabaseFile :
-                        "";
-    }
 
     /**
-     * The SQLite row is authoritative.
-     *
-     * This used to read cacheVersion.json, and nothing ever wrote that file: Cache.updateVersion()
-     * was deleted in f122d0d, so a code version of 7 sat permanently against a stored 6 and every
-     * boot paid a full rebuild of all 491 replays. Tracking the version next to the data it
-     * describes keeps the two in step, and a database restored from an older backup reads as
+     * The SQLite row is authoritative: a database restored from an older backup reads as
      * stale and rebuilds rather than trusting caches that may predate it.
      */
     isUpdateRequired(): boolean {
@@ -73,32 +42,84 @@ class LocalRatingsCache {
     }
 
     /**
-     * Record that the cached JSON files now match `version`. Call this only once every rebuild
-     * has persisted its file, so a failure part-way through leaves the version unrecorded and the
+     * Record that the caches now match `version`. Call this only once every rebuild
+     * has persisted, so a failure part-way through leaves the version unrecorded and the
      * next boot rebuilds.
-     *
-     * The sidecar file is still written on purpose: a container running the previous build reads
-     * nothing but that file, so during a rollout it is what keeps the old container from paying
-     * the same rebuild. It can be dropped once no old container can reach the database.
      */
     markAsCurrent(): void {
         if (Engine.database !== null)
             Engine.ConfigDB_CreateValue(VERSION_SECTION, VERSION_KEY, `${this.version}`);
-
-        Engine.WriteJSONFile(this.cacheVersionFile, { "version": this.version });
     }
 
-    load(tag: string) {
-        const file = this.tagToFilename(tag);
-        const data = Engine.FileExists(file) && Engine.ReadJSONFile(file);
-        return (data) ? data : {};
+    load(tag: string): Rows {
+        const spec = TABLES[tag];
+        if (!spec || Engine.database === null)
+            return {};
+
+        this.importLegacyFile(Engine.database, tag);
+
+        // rowid order keeps the insertion order the JSON object used to have.
+        const rows = Engine.database.prepare(`Select ${spec.key} as k, data From ${spec.table} Order By rowid;`).all() as { k: string, data: string }[];
+        const result: Rows = {};
+        for (const row of rows)
+            result[row.k] = JSON.parse(row.data);
+        return result;
     }
 
-    save(tag: string, json: unknown) {
-        const file = this.tagToFilename(tag);
-        Engine.WriteJSONFile(file, json);
+    /** Replace the whole cache. */
+    save(tag: string, json: unknown): void {
+        const spec = TABLES[tag];
+        if (!spec || Engine.database === null)
+            return;
+
+        const db = Engine.database;
+        db.transaction(() => {
+            db.prepare(`Delete From ${spec.table};`).run();
+            this.upsertRows(db, tag, json as Rows);
+        })();
+
+        // The table now holds this cache; a leftover file would only ever be stale.
+        if (Engine.FileExists(spec.legacyFile))
+            renameSync(spec.legacyFile, `${spec.legacyFile}.migrated`);
     }
 
+    /** Add or overwrite some entries, leaving the others as they are. */
+    merge(tag: string, json: unknown): void {
+        const spec = TABLES[tag];
+        if (!spec || Engine.database === null)
+            return;
+
+        const db = Engine.database;
+        db.transaction(() => this.upsertRows(db, tag, json as Rows))();
+    }
+
+    private upsertRows(db: Database, tag: string, rows: Rows): void {
+        const spec = TABLES[tag];
+        const statement = db.prepare(
+            `Insert Into ${spec.table} (${spec.key}, data) Values (@k, @data) On Conflict(${spec.key}) Do Update Set data = excluded.data;`);
+        for (const [k, value] of Object.entries(rows))
+            statement.run({ "k": k, "data": JSON.stringify(value) });
+    }
+
+    /**
+     * One-time import of the JSON files this cache used before migrations/013: when a table is
+     * empty and its file still exists, the file's content moves into the table (save() then renames
+     * the file so it cannot be imported twice). Replay entries whose replay no longer exists are
+     * skipped, as the foreign key would refuse them anyway.
+     */
+    private importLegacyFile(db: Database, tag: string): void {
+        const spec = TABLES[tag];
+        if (!Engine.FileExists(spec.legacyFile) || db.prepare(`Select 1 From ${spec.table} Limit 1;`).get())
+            return;
+
+        let rows = Engine.ReadJSONFile(spec.legacyFile) as Rows;
+        if (tag === "replayDatabase") {
+            const known = db.prepare("Select 1 From replays Where match_id = ?;");
+            rows = Object.fromEntries(Object.entries(rows).filter(([matchId]) => known.get(matchId)));
+        }
+
+        this.save(tag, rows);
+    }
 }
 
 export {

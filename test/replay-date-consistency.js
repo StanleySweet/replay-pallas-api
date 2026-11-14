@@ -6,13 +6,12 @@
 // truth, and the replay list therefore disagreed with the replay details page.
 
 const assert = require("assert");
-const fs = require("fs");
 const Database = require("better-sqlite3");
 const snappy = require("snappy");
 const { LocalRatingsMinifier } = require("../dist/local-ratings/Minifier");
 
 const db = new Database("dist/cache/replay-pallas.sqlite3");
-const cache = JSON.parse(fs.readFileSync("dist/cache/replayDatabase.json", "utf8"));
+const cache = Object.fromEntries(db.prepare("SELECT match_id, data FROM local_replays").all().map(r => [r.match_id, JSON.parse(r.data)]));
 const magnified = new LocalRatingsMinifier().magnifyReplayDatabase(cache);
 
 const rows = db.prepare("SELECT match_id, metadata, creation_date FROM replays").all();

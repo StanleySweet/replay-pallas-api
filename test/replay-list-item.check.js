@@ -2,7 +2,6 @@
 // filter and the version display need. Run: node test/replay-list-item.check.js (after a build).
 
 const assert = require("assert");
-const fs = require("fs");
 const Database = require("better-sqlite3");
 const { toReplayListItem } = require("../dist/controllers/helpers/replayListItem");
 const { LocalRatingsMinifier } = require("../dist/local-ratings/Minifier");
@@ -11,7 +10,7 @@ const { EngineInstance } = require("../dist/types/Engine");
 const db = new Database("dist/cache/replay-pallas.sqlite3");
 EngineInstance.database = db;
 const magnified = new LocalRatingsMinifier().magnifyReplayDatabase(
-    JSON.parse(fs.readFileSync("dist/cache/replayDatabase.json", "utf8")));
+    Object.fromEntries(db.prepare("SELECT match_id, data FROM local_replays").all().map(r => [r.match_id, JSON.parse(r.data)])));
 
 let failed = 0;
 const check = (name, fn) => {

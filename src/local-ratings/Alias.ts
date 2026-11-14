@@ -31,11 +31,6 @@ class LocalRatingsAliasManager {
         if (!ratingsDatabase && !historyDatabase)
             return;
 
-        this.load();
-
-        if (!historyDatabase && !ratingsDatabase)
-            return;
-
 
         let database: LocalRatingsRatingDatabase | LocalRatingsHistoryDatabase;
         if (historyDatabase)

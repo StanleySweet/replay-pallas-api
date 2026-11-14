@@ -57,10 +57,9 @@ check('the version is recorded only after both rebuilds return', () => {
         'markAsCurrent runs before a rebuild has persisted its file');
 });
 
-check('the sidecar is still written for the previous build during rollout', () => {
-    const body = cacheSource.slice(cacheSource.indexOf('markAsCurrent('));
-    assert.ok(/WriteJSONFile\(this\.cacheVersionFile/.test(body),
-        'a container on the previous build would rebuild again on every boot');
+check('no cacheVersion.json sidecar is written any more', () => {
+    assert.ok(!/cacheVersion\.json|cacheVersionFile/.test(cacheSource),
+        'the SQLite row is the only version record');
 });
 
 check('the port is opened after init_LocalRatings, not before', () => {
@@ -100,7 +99,6 @@ const readRow = (db) => {
 };
 
 const cache = new LocalRatingsCache();
-fs.writeFileSync(cache.cacheVersionFile, JSON.stringify({ version: 6 }));
 
 check('a database with no version row reports a rebuild', () => {
     const db = freshDb();
@@ -131,12 +129,10 @@ check('an unparseable recorded version reports a rebuild rather than throwing', 
     assert.strictEqual(cache.isUpdateRequired(), true);
 });
 
-check('markAsCurrent records the version and refreshes the sidecar', () => {
+check('markAsCurrent records the version', () => {
     const db = freshDb();
-    fs.writeFileSync(cache.cacheVersionFile, JSON.stringify({ version: 6 }));
     cache.markAsCurrent();
     assert.strictEqual(readRow(db), `${cache.version}`, 'row not written');
-    assert.strictEqual(JSON.parse(fs.readFileSync(cache.cacheVersionFile, 'utf8')).version, cache.version, 'sidecar not refreshed');
     assert.strictEqual(cache.isUpdateRequired(), false, 'still stale after recording');
 });
 
@@ -149,11 +145,9 @@ check('markAsCurrent is idempotent', () => {
     assert.strictEqual(cache.isUpdateRequired(), false);
 });
 
-check('markAsCurrent still refreshes the sidecar with no database wired', () => {
+check('markAsCurrent does nothing with no database wired', () => {
     EngineInstance.SetDataBase(null);
-    fs.writeFileSync(cache.cacheVersionFile, JSON.stringify({ version: 6 }));
     assert.doesNotThrow(() => cache.markAsCurrent());
-    assert.strictEqual(JSON.parse(fs.readFileSync(cache.cacheVersionFile, 'utf8')).version, cache.version);
     assert.strictEqual(cache.isUpdateRequired(), true, 'must still rebuild without a database');
 });
 
