@@ -7,8 +7,6 @@ import { fastify, FastifyReply, FastifyRequest } from "fastify";
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
-import sqlite3 from 'sqlite3';
-import { open, Database } from 'sqlite';
 import { UserController } from "./controllers/UserController";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
@@ -19,6 +17,7 @@ import { JOSE_SECRET } from "./project_globals";
 import { LobbyUserController } from "./controllers/LobbyUserController";
 import { EngineInstance } from "./types/Engine";
 import BetterDatabase from "better-sqlite3";
+import { migrate } from "./migrate";
 import { init_LocalRatings } from "./local-ratings/utilities/functions_utility";
 import { LocalRatingsController } from "./controllers/LocalRatingsController";
 import { Glicko2Manager } from "./instant-glicko-2/Glicko2Manager";
@@ -228,20 +227,8 @@ server.register(fastifySchedulePlugin);
 // looks healthy to a TCP probe while no request is ever served. A refused connection is
 // what the Docker healthcheck and deploy.sh already retry on.
 const start = async () => {
-    sqlite3.verbose();
-    const db: Database = await open({
-        "filename": "dist/cache/replay-pallas.sqlite3",
-        "mode": sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-        "driver": sqlite3.Database
-    });
-
-    await db.migrate({
-        migrationsPath: 'src/migrations'
-    });
-    
-    db.close();
-
     const bdb = BetterDatabase("dist/cache/replay-pallas.sqlite3", { readonly: false });
+    migrate(bdb, "src/migrations");
     EngineInstance.SetDataBase(bdb);
     bdb.pragma('journal_mode = WAL');
     bdb.pragma('synchronous = normal');
