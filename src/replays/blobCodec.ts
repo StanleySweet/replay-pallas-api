@@ -11,7 +11,7 @@ import snappy from "snappy";
 // mistaken for an old snappy blob. Old blobs stay readable until they are rewritten.
 const BROTLI_PREFIX = Buffer.from([0x00, 0x01]);
 
-// Quality 5 is within about 15% of quality 9 at a tenth of the time, which keeps the hourly rebuild fast.
+// Quality 5 is within about 15% of quality 9 at a tenth of the time, which keeps the admin rebuild fast.
 const BROTLI_QUALITY = 5;
 
 function isBrotliBlob(blob: Buffer): boolean {

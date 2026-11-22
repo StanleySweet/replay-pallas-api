@@ -105,21 +105,29 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
         // Rows whose files are still stored the old way get rewritten as brotli below.
         const repackFiledata = new Set<string>();
         for (const replay of replays) {
-            if (Buffer.isBuffer(replay.metadata))
-                replay.metadata = JSON.parse(unpackBlob(replay.metadata));
-            if (Buffer.isBuffer(replay.filedata)) {
-                if (!isBrotliBlob(replay.filedata))
-                    repackFiledata.add(replay.match_id);
-                replay.filedata = unpackBlob(replay.filedata);
+            // One unreadable row must not abort the rebuild half way: the link tables were already
+            // cleared above, so they would stay incomplete. Log it and keep the row as it is.
+            try {
+                if (Buffer.isBuffer(replay.metadata))
+                    replay.metadata = JSON.parse(unpackBlob(replay.metadata));
+                if (Buffer.isBuffer(replay.filedata)) {
+                    if (!isBrotliBlob(replay.filedata))
+                        repackFiledata.add(replay.match_id);
+                    replay.filedata = unpackBlob(replay.filedata);
+                }
+
+                // filedata is the JSON map of the uploaded files, the parser wants the commands.txt text.
+                const commands = JSON.parse(replay.filedata)["commands.txt"];
+                if (typeof commands !== "string")
+                    continue;
+
+                const commandsData = extract_commands_data(commands);
+                replay.metadata = Object.assign(replay.metadata, commandsData);
             }
-
-            // filedata is the JSON map of the uploaded files, the parser wants the commands.txt text.
-            const commands = JSON.parse(replay.filedata)["commands.txt"];
-            if (typeof commands !== "string")
-                continue;
-
-            const commandsData = extract_commands_data(commands);
-            replay.metadata = Object.assign(replay.metadata, commandsData);
+            catch (error) {
+                logger.error({ err: error, matchId: replay.match_id }, "Rebuilding replays metadata: skipped an unreadable replay");
+                repackFiledata.delete(replay.match_id);
+            }
         }
 
         const mpNames = replays.map(replay => {
