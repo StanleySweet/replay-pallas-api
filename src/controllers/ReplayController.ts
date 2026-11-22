@@ -7,7 +7,7 @@ import AdmZip, { IZipEntry } from "adm-zip";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { UploadReplayZipResponse, UploadReplayZipResponseSchema } from "../types/UploadReplayZipResponse";
 import { ReplayFileData } from "../types/ReplayFileData";
-import { Replay, ReplayDetails, ReplayDetailsSchema, Replays, ReplaysSchema, ToDbFormat } from "../types/Replay";
+import { Replay, ReplayDetailsSchema, Replays, ReplaysSchema, ToDbFormat } from "../types/Replay";
 import { UploadReplayCommandsResponseSchema } from "../types/UploadReplayCommandsResponse";
 import zodToJsonSchema from "zod-to-json-schema";
 import { ReplayMetaData } from "../types/ReplayMetaData";
@@ -57,7 +57,7 @@ function get_my_replays_list_items(request: FastifyRequest, reply: FastifyReply,
         return;
     }
 
-    const replays: Replays = fastify.database.prepare('SELECT r.match_id, r.creation_date FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": request.claims?.id }) as Replays;
+    const replays: Replays = fastify.replays.idsUploadedBy(request.claims?.id);
     const matchIds: string[] = replays.sort((b, a) => new Date(a.creation_date as unknown as string).getTime() - new Date(b.creation_date as unknown as string).getTime()).map(a => a.match_id);
     get_list_items_from_local_ratings(matchIds, reply, fastify);
 }
@@ -85,17 +85,14 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
     let offset = 0;
     let hasMoreData = true;
 
-    const { count } = fastify.database.prepare('Select Count(*) as count From replays;').get() as { count: number };
+    const count = fastify.replays.count();
 
-    fastify.database.prepare('Delete From replay_lobby_player_link;').run();
-    fastify.database.prepare("Delete From lobby_ranking_history;").run();
+    fastify.replays.clearLobbyLinks();
+    fastify.replays.clearRankingHistory();
 
     while (hasMoreData) {
 
-        const replays: Replays = fastify.database.prepare(`
-        SELECT * FROM replays r
-        LIMIT @batchSize OFFSET @offset;`
-        ).all({ "batchSize": BATCH_SIZE, "offset": offset }) as Replays;
+        const replays: Replays = fastify.replays.page(BATCH_SIZE, offset);
 
         // Check if there's no more data
         if (replays.length === 0) {
@@ -154,13 +151,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
 
         const userMap = new Map<string, number>();
         for (const name of names) {
-            let existingUser: { id: number } = fastify.database.prepare("Select id From lobby_players where nick = @nick  LIMIT 1;").get({ "nick": name.name }) as { id: number };
-            if (!existingUser) {
-                fastify.database.prepare("Insert Into lobby_players (nick) Values (@nick)").run({ "nick": name.name });
-                existingUser = fastify.database.prepare("Select id From lobby_players where nick = @nick LIMIT 1;").get({ "nick": name.name }) as { id: number };
-            }
-
-            userMap.set(name.name, existingUser.id);
+            userMap.set(name.name, fastify.players.findOrCreateId(name.name));
         }
 
         for (const replay of replays) {
@@ -184,48 +175,26 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
             }
         }
 
-        const updateStatement = fastify.database.prepare(`
-    Update replays
-    Set
-    modification_date = @modification_date,
-    metadata = @metadata
-    Where match_id = @match_id;`);
         for (const replay of replays) {
             if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a)) {
                 const currentDate = new Date();
                 const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
-                updateStatement.run({
-                    match_id: replay.metadata.matchID,
-                    metadata: packBlob(JSON.stringify(replay.metadata)),
-                    modification_date: formattedDate
-                });
+                fastify.replays.updateMetadata(replay.metadata.matchID, packBlob(JSON.stringify(replay.metadata)), formattedDate);
             }
         }
 
-        const repackStatement = fastify.database.prepare('Update replays Set filedata = @filedata Where match_id = @match_id;');
         for (const replay of replays) {
             if (repackFiledata.has(replay.match_id))
-                repackStatement.run({ match_id: replay.match_id, filedata: packBlob(replay.filedata as string) });
+                fastify.replays.updateFiledata(replay.match_id, packBlob(replay.filedata as string));
         }
 
         for (const name of names) {
             const existingUser_id = userMap.get(name.name);
-            const existingLink = fastify.database.prepare("Select 1 From replay_lobby_player_link where match_id = @matchId and lobby_player_id = @lobby_player_id LIMIT 1;").get({ "matchId": name.matchId, "lobby_player_id": existingUser_id });
-            if (!existingLink) {
-                fastify.database.prepare("Insert Into replay_lobby_player_link (lobby_player_id, match_id) Values (@lobby_player_id, @matchId);").run({ "lobby_player_id": existingUser_id, "matchId": name.matchId });
-            }
+            fastify.replays.linkLobbyPlayer(name.matchId, existingUser_id);
         }
 
         const ranks = get_ranks(replays);
-        const insertStatement = fastify.database.prepare('Insert Into lobby_ranking_history (match_id, lobby_player_id, elo, date) Values (@match_id, @lobby_player_id, @elo, @date)');
-        for (const rank of ranks) {
-            insertStatement.run({
-                "match_id": rank.match_id,
-                "elo": rank.elo,
-                "lobby_player_id": rank.lobby_player_id,
-                "date": rank.date
-            });
-        }
+        fastify.replays.addRankingHistory(ranks);
 
         // Update offset for the next batch
         offset += BATCH_SIZE;
@@ -296,24 +265,17 @@ const rebuild_lobby_rank_history = (request: FastifyRequest, reply: FastifyReply
         return;
     }
 
-    const replays: Replays = fastify.database.prepare('Select metadata, creation_date, match_id From replays;').all() as Replays;
-    fastify.database.prepare('Delete From lobby_ranking_history;').run();
+    const replays: Replays = fastify.replays.metadataWithDates();
+    fastify.replays.clearRankingHistory();
     const ranks = get_ranks(replays);
-    for (const rank of ranks) {
-        fastify.database.prepare('Insert Into lobby_ranking_history (match_id, lobby_player_id, elo, date) Values (@match_id, @lobby_player_id, @elo, @date)').run({
-            "match_id": rank.match_id,
-            "elo": rank.elo,
-            "lobby_player_id": rank.lobby_player_id,
-            "date": rank.date
-        });
-    }
+    fastify.replays.addRankingHistory(ranks);
 
     reply.send(ranks);
 };
 
 function UploadReplayToDatabase(replay: Replay, server: FastifyInstance): boolean {
     try {
-        server.database.prepare(`INSERT INTO replays (match_id, metadata, filedata, creation_date) VALUES($matchId, $metadata, $filedata, $creationDate)`).run(ToDbFormat(replay));
+        server.replays.insert(ToDbFormat(replay) as Parameters<typeof server.replays.insert>[0]);
         return true;
     } catch (ex) {
         server.log.error(ex);
@@ -395,16 +357,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         const candidateIds = [...new Set(replays
             .map(b => b.metadata.matchID)
             .filter((id): id is string => typeof id === "string" && id.length > 0))];
-        const knownIds = new Set<string>();
-        // Chunked because SQLite caps a host parameter count (999 before 3.32, 32766 after).
-        for (let i = 0; i < candidateIds.length; i += 500) {
-            const chunk = candidateIds.slice(i, i + 500);
-            const existing: { match_id: string }[] = server.database
-                .prepare(`SELECT match_id FROM replays WHERE match_id IN (${chunk.map(() => "?").join(', ')});`)
-                .all(...chunk) as { match_id: string }[];
-            for (const row of existing)
-                knownIds.add(row.match_id);
-        }
+        const knownIds = server.replays.existingMatchIds(candidateIds);
 
         // A replay with no matchID cannot be deduplicated or linked, and the insert loop below
         // skipped it anyway, so filter it out here rather than carrying it further.
@@ -439,13 +392,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         const userMap = new Map<string, number>();
         for (const name of names) {
-            let existingUser: { id: number } = server.database.prepare("Select id From lobby_players where nick = @nick LIMIT 1;").get({ "nick": name.name }) as { id: number };
-            if (!existingUser) {
-                server.database.prepare("Insert Into lobby_players (nick) Values (@nick)").run({ "nick": name.name });
-                existingUser = server.database.prepare("Select id From lobby_players where nick = @nick LIMIT 1;").get({ "nick": name.name }) as { id: number };
-            }
-
-            userMap.set(name.name, existingUser.id);
+            userMap.set(name.name, server.players.findOrCreateId(name.name));
         }
 
         for (const replay of newReplays) {
@@ -473,7 +420,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         for (const replay of newReplays) {
             if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a) && UploadReplayToDatabase(replay, server)) {
                 // Add a link so users can delete the replays they uploaded
-                server.database.prepare("Insert Or Ignore Into replay_user_link (user_id, match_id) Values (@user_id, @matchId);").run({ "user_id": request.claims?.id, "matchId": replay.metadata.matchID });
+                server.replays.linkUploader(request.claims?.id, replay.metadata.matchID);
                 response.AddedReplays.push(replay.metadata.matchID);
                 replaysUploadedTotal.inc();
             }
@@ -481,21 +428,11 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         for (const name of names) {
             const existingUser_id = userMap.get(name.name);
-            const existingLink = server.database.prepare("Select 1 From replay_lobby_player_link where match_id = @matchId and lobby_player_id = @lobby_player_id LIMIT 1;").get({ "matchId": name.matchId, "lobby_player_id": existingUser_id });
-            if (!existingLink) {
-                server.database.prepare("Insert Into replay_lobby_player_link (lobby_player_id, match_id) Values (@lobby_player_id, @matchId);").run({ "lobby_player_id": existingUser_id, "matchId": name.matchId });
-            }
+            server.replays.linkLobbyPlayer(name.matchId, existingUser_id);
         }
 
         const ranks = get_ranks(newReplays);
-        for (const rank of ranks) {
-            server.database.prepare('Insert Into lobby_ranking_history (match_id, lobby_player_id, elo, date) Values (@match_id, @lobby_player_id, @elo, @date)').run({
-                "match_id": rank.match_id,
-                "elo": rank.elo,
-                "lobby_player_id": rank.lobby_player_id,
-                "date": rank.date
-            });
-        }
+        server.replays.addRankingHistory(ranks);
 
         response.Success = response.AddedReplays.length !== 0;
 
@@ -536,7 +473,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const file: Replay = server.database.prepare('SELECT match_id, filedata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as Replay;
+        const file = server.replays.getFiles(matchId);
         if (!file) {
             reply.send(null);
             return;
@@ -579,7 +516,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replay: ReplayDetails = server.database.prepare('SELECT match_id, metadata, filedata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as ReplayDetails;
+        const replay = server.replays.getDetails(matchId);
         if(replay?.metadata)
             replay.metadata = JSON.parse(unpackBlob(replay.metadata as string));
 
@@ -653,7 +590,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             reply.send();
             return;
         }
-        const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays ORDER BY creation_date desc LIMIT 10;').all() as Replays;
+        const replays: Replays = server.replays.latestMetadata();
         for (const element of replays)
             element.metadata = JSON.parse(unpackBlob(element.metadata as string));
         reply.send(replays);
@@ -703,7 +640,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays ORDER BY creation_date desc').all() as Replays;
+        const replays: Replays = server.replays.allMetadataNewestFirst();
         for (const element of replays)
             element.metadata = JSON.parse(unpackBlob(element.metadata as string));
         reply.send(replays);
@@ -737,10 +674,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         // Only the uploader of a replay (or an administrator) may delete it.
         // Without this check any contributor could delete any replay by its match ID.
         const isAdministrator = request.claims?.role === EUserRole.ADMINISTRATOR;
-        const ownsReplay = !!server.database.prepare("Select 1 From replay_user_link Where match_id = @match_id and user_id = @user_id LIMIT 1;").get({
-            "match_id": request.params.match_id,
-            "user_id": request.claims?.id
-        });
+        const ownsReplay = server.replays.isUploadedBy(request.params.match_id, request.claims?.id);
 
         if (!ownsReplay && !isAdministrator) {
             reply.code(403);
@@ -750,9 +684,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         // The uploader links, player links, ranking history and local-ratings cache row all
         // cascade from the replay (migrations/012 and 013).
-        server.database.prepare("Delete From replays Where match_id = @match_id;").run({
-            "match_id": request.params.match_id
-        });
+        server.replays.delete(request.params.match_id);
 
         // Drop it from memory and recompute the ratings, so a deleted replay stops counting at once.
         server.replayDb.delete(request.params.match_id);
@@ -806,7 +738,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replays: Replays = server.database.prepare('SELECT r.match_id, metadata FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": request.claims?.id }) as Replays;
+        const replays: Replays = server.replays.metadataUploadedBy(request.claims?.id);
         if (!replays || !replays.length) {
             reply.code(204);
             reply.send();

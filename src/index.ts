@@ -18,6 +18,8 @@ import { LobbyUserController } from "./controllers/LobbyUserController";
 import { EngineInstance } from "./types/Engine";
 import BetterDatabase from "better-sqlite3";
 import { migrate } from "./migrate";
+import { ReplayRepository } from "./repositories/ReplayRepository";
+import { PlayerRepository } from "./repositories/PlayerRepository";
 import { init_LocalRatings } from "./local-ratings/utilities/functions_utility";
 import { LocalRatingsController } from "./controllers/LocalRatingsController";
 import { Glicko2Manager } from "./instant-glicko-2/Glicko2Manager";
@@ -250,6 +252,8 @@ const start = async () => {
     await server.ready();
     server.swagger();
     server.database = bdb;
+    server.replays = new ReplayRepository(bdb);
+    server.players = new PlayerRepository(bdb);
 
     const { ratingsDb, replayDb, aliasDb } = init_LocalRatings();
 
