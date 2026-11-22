@@ -13,7 +13,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 import { ReplayMetaData } from "../types/ReplayMetaData";
 import { extract_commands_data, extract_commands_stats } from "../replays/commandsParser";
 import { update_LocalRatings } from "../local-ratings/utilities/functions_utility";
-import { packBlob, unpackBlob } from "../replays/blobCodec";
+import { isBrotliBlob, packBlob, unpackBlob } from "../replays/blobCodec";
 import EUserRole from "../enumerations/EUserRole";
 import { z } from "zod";
 import { MetadataSettings } from "../types/MetadataSettings";
@@ -105,13 +105,23 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
 
         logger.info(`Rebuilding replays metadata. Treating replay ${offset} to ${offset + replays.length} of ${count} replays.`);
 
+        // Rows whose files are still stored the old way get rewritten as brotli below.
+        const repackFiledata = new Set<string>();
         for (const replay of replays) {
             if (Buffer.isBuffer(replay.metadata))
                 replay.metadata = JSON.parse(unpackBlob(replay.metadata));
-            if (Buffer.isBuffer(replay.filedata))
+            if (Buffer.isBuffer(replay.filedata)) {
+                if (!isBrotliBlob(replay.filedata))
+                    repackFiledata.add(replay.match_id);
                 replay.filedata = unpackBlob(replay.filedata);
+            }
 
-            const commandsData = extract_commands_data(replay.filedata);
+            // filedata is the JSON map of the uploaded files, the parser wants the commands.txt text.
+            const commands = JSON.parse(replay.filedata)["commands.txt"];
+            if (typeof commands !== "string")
+                continue;
+
+            const commandsData = extract_commands_data(commands);
             replay.metadata = Object.assign(replay.metadata, commandsData);
         }
 
@@ -190,6 +200,12 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
                     modification_date: formattedDate
                 });
             }
+        }
+
+        const repackStatement = fastify.database.prepare('Update replays Set filedata = @filedata Where match_id = @match_id;');
+        for (const replay of replays) {
+            if (repackFiledata.has(replay.match_id))
+                repackStatement.run({ match_id: replay.match_id, filedata: packBlob(replay.filedata as string) });
         }
 
         for (const name of names) {

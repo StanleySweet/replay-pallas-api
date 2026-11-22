@@ -20,8 +20,9 @@ check('data: per-player commands, derived stats and duration', () => {
     const d = extract_commands_data(commands);
     const [a, b] = d.settings.PlayerData;
     assert.strictEqual(a.NameWithoutRating, 'Alice');
-    assert.strictEqual(a.Commands.length, 3);
-    assert.strictEqual(b.Commands.length, 1);
+    assert.strictEqual(a.NumberOfCommands, 3);
+    assert.strictEqual(a.Commands, undefined);
+    assert.strictEqual(b.NumberOfCommands, 1);
     assert.strictEqual(a.MostUsedCmd, 'walk');
     assert.strictEqual(d.settings.NbTurns, 2);
     assert.strictEqual(d.settings.MatchDuration, 0.4);

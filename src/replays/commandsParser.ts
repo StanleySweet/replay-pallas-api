@@ -95,6 +95,9 @@ export function extract_commands_data(text: string): ReplayMetaData | null | und
         if (!data.settings.PlayerData)
             data.settings.PlayerData = [];
 
+        // Only the type of each command is kept, to compute the statistics below. The commands
+        // themselves stay in commands.txt: copying them here made the metadata about nine times larger.
+        const commandTypes: string[][] = [];
         for (const line of lines) {
             if (line.startsWith("turn")) {
                 currentTurn = +line.split(" ")[1];
@@ -103,33 +106,29 @@ export function extract_commands_data(text: string): ReplayMetaData | null | und
                 const player = +line.substring(4, 5) - 1;
                 if (!data.settings.PlayerData[player])
                     data.settings.PlayerData[player] = {};
-                if (!data.settings.PlayerData[player].Commands)
-                    data.settings.PlayerData[player].Commands = [];
-                const cmdData = JSON.parse(line.substring(6));
-                cmdData.turn = currentTurn;
-                data.settings.PlayerData[player].Commands?.push(cmdData);
+                if (!commandTypes[player])
+                    commandTypes[player] = [];
+                commandTypes[player].push(JSON.parse(line.substring(6)).type);
             }
         }
 
         data.settings.NbTurns = currentTurn;
         data.settings.MatchDuration = currentTurn * 200.0 / 1000.0;
         const playerData = data.settings.PlayerData;
-        for (const player of playerData) {
+        for (let i = 0; i < playerData.length; ++i) {
+            const player = playerData[i];
             if (!player)
                 continue;
 
             player.NameWithoutRating = player.Name?.split("(")[0].trimEnd();
-            if (!player.Commands)
+            const types = commandTypes[i];
+            if (!types)
                 continue;
 
-            player.MostUsedCmd = mode(player.Commands.map(a => a.type));
-            player.SecondMostUsedCmd = mode(
-                player.Commands.filter((a) => a.type !== player.MostUsedCmd).map(
-                    (a) => a.type
-                )
-            );
-
-            player.AverageCPM = (player.Commands.length / (data.settings.MatchDuration / 60.0));
+            player.NumberOfCommands = types.length;
+            player.MostUsedCmd = mode(types);
+            player.SecondMostUsedCmd = mode(types.filter((type) => type !== player.MostUsedCmd));
+            player.AverageCPM = (types.length / (data.settings.MatchDuration / 60.0));
         }
 
         return data;

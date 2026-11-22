@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { CommandSchema } from "./Command";
 
 const PlayerDataSchema = z.object({
     AI: z.any(),
@@ -11,7 +10,7 @@ const PlayerDataSchema = z.object({
     AverageCPM: z.number(),
     State: z.string(),
     LobbyUserId : z.number(),
-    Commands: z.array(CommandSchema),
+    NumberOfCommands: z.number(),
     SecondMostUsedCmd: z.string(),
     MostUsedCmd: z.string()
 }).partial();
