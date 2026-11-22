@@ -9,7 +9,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 import { getAvd_LocalRatings, getMean_LocalRatings, getStd_LocalRatings, formatRating_LocalRatings, sortString_LocalRatings, update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import { z } from 'zod';
 import { LocalRatingsHistoryDirectoryElement } from "../local-ratings/types/HistoryDatabase";
-import { LatestUser, LatestUserSchema, GlickoElo } from "../types/User";
+import { LatestUser, LatestUserSchema } from "../types/User";
 import { LocalRatingsEvolutionChartOptions } from "../local-ratings/EvolutionChartOptions";
 import { LocalRatingsDistributionChartOptions } from "../local-ratings/DistributionChartOptions";
 import { LocalRatingsSettingsManager } from "../local-ratings/Settings";
@@ -286,7 +286,7 @@ const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyRepl
         return civRating - currentRating;
     };
 
-    const civs: Civilizations = fastify.database.prepare("Select key from civilizations;").all() as Civilizations;
+    const civs: Civilizations = fastify.localRatings.civilizations();
     const currentRating = get_current_rating();
     const civRatings = civs.map(x => get_civ_rating(x.key));
     const civMatches = civs.map(x => get_civ_matches(x.key));
@@ -476,9 +476,7 @@ const get_replay_distribution_chart_data = (request: ReplayDistributionRequest, 
         return;
     }
 
-    const nicks = fastify.database
-        .prepare('SELECT DISTINCT lp.nick AS nick FROM replay_lobby_player_link rlpl JOIN lobby_players lp ON lp.id = rlpl.lobby_player_id WHERE rlpl.match_id = @matchId')
-        .all({ matchId }) as { nick: string }[];
+    const nicks = fastify.localRatings.nicksInReplay(matchId);
 
     const highlights = nicks
         .map(row => ratingsDatabase[row.nick]?.rating)
@@ -604,10 +602,7 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
     // concatenated straight into the IN list, which let a nick containing a quote break
     // out of it. Bind one parameter per nick instead.
     const nicks = items.map(a => a[0] as string);
-    const users: LatestUser[] = fastify.database.prepare(`SELECT lp.id, lp.nick, (CASE  when u.role IS  Null then 0 else u.role END)
-    as role, CASE When u.creation_date is null then lp.creation_date else lp.creation_date End as creation_date FROM lobby_players lp
-    Left Join users u on u.nick = lp.nick
-    Where lp.nick in (${nicks.map(() => "?").join(', ')})`).all(...nicks) as LatestUser[];
+    const users: LatestUser[] = fastify.localRatings.playersByNicks(nicks);
 
     // Construct table rows, using the previously created items
     const rows = items.map((x, i): Row => {
@@ -659,12 +654,12 @@ const get_player_profile = async (request: GetPlayerProfileRequest, reply: Fasti
     // Glicko 2 is tracked per lobby player, the local ratings per nick, so the
     // two only meet through lobby_players.nick. Players without a rated match
     // yet have no row at all.
-    const glicko = fastify.database.prepare('SELECT elo, deviation, match_count FROM glicko2_rankings Where lobby_player_id = (SELECT id FROM lobby_players Where nick = @nick) Order By date desc, id desc Limit 1;').get({ "nick": player }) as GlickoElo | undefined;
+    const glicko = fastify.localRatings.latestGlicko(player);
 
     // The in-game ladder rating is a different number from the glicko one above:
     // UserController defaults it to 1200 for players who never ranked, which we
     // do not do here because a fabricated starting rating reads as a real one.
-    const gameRanking = fastify.database.prepare('SELECT elo FROM lobby_ranking_history Where lobby_player_id = (SELECT id FROM lobby_players Where nick = @nick) Order By date desc, id desc Limit 1;').get({ "nick": player }) as { "elo": number } | undefined;
+    const gameRanking = fastify.localRatings.latestGameElo(player);
 
     const captions: PlayerProfile = {
         "rankText": { "rank": rank, "players": players },

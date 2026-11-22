@@ -16,7 +16,7 @@ const get_lobby_users = (request: FastifyRequest, reply: FastifyReply, fastify: 
     }
 
     try {
-        const users: User[] = fastify.database.prepare('SELECT id, nick, 0 as role FROM lobby_players').all() as User[];
+        const users: User[] = fastify.players.all();
         if (!users || !users.length) {
             reply.code(204);
             reply.send();

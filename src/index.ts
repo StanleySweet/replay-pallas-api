@@ -20,6 +20,8 @@ import BetterDatabase from "better-sqlite3";
 import { migrate } from "./migrate";
 import { ReplayRepository } from "./repositories/ReplayRepository";
 import { PlayerRepository } from "./repositories/PlayerRepository";
+import { UserRepository } from "./repositories/UserRepository";
+import { LocalRatingsRepository } from "./repositories/LocalRatingsRepository";
 import { init_LocalRatings } from "./local-ratings/utilities/functions_utility";
 import { LocalRatingsController } from "./controllers/LocalRatingsController";
 import { Glicko2Manager } from "./instant-glicko-2/Glicko2Manager";
@@ -184,9 +186,7 @@ server.get('/metrics', async (request, reply) => {
         }
 
         // Check credentials against database
-        const user = server.database.prepare(
-            "SELECT id, role FROM users WHERE nick = @nick AND password = @password LIMIT 1"
-        ).get({ nick: username, password }) as { id: number; role: number } | undefined;
+        const user = server.users.findMetricsAccount(username, password);
 
         if (!user) {
             reply.code(401);
@@ -254,6 +254,8 @@ const start = async () => {
     server.database = bdb;
     server.replays = new ReplayRepository(bdb);
     server.players = new PlayerRepository(bdb);
+    server.users = new UserRepository(bdb);
+    server.localRatings = new LocalRatingsRepository(bdb);
 
     const { ratingsDb, replayDb, aliasDb } = init_LocalRatings();
 

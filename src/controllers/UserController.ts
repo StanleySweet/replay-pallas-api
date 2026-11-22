@@ -11,7 +11,6 @@ import * as jose from 'jose';
 import EUserRole from "../enumerations/EUserRole";
 import { PallasTokenPayload, PallasUserToken, PallasUserTokenSchema } from "../types/PallasToken";
 import { JOSE_ALG as alg, JOSE_SECRET } from "../project_globals";
-import { Replays } from "../types/Replay";
 import { mode } from "../Utils";
 import { unpackBlob } from "../replays/blobCodec";
 import { LocalRatingsReplay } from "../local-ratings/Replay";
@@ -37,13 +36,9 @@ const get_chart_data = (fastify: FastifyInstance, lobby_user: number): EloGraph 
         });
     }
 
-    let game_ranking = fastify.database.prepare("Select elo, date From lobby_ranking_history Where lobby_player_id = @lobby_player_id").all({
-        "lobby_player_id": lobby_user,
-    }) as { "elo": number, "date": string }[];
+    let game_ranking = fastify.players.rankingHistory(lobby_user);
 
-    let glicko_ranking = fastify.database.prepare("Select elo, date, deviation, volatility, preview_deviation, match_count From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
-        "lobby_player_id": lobby_user,
-    }) as GlickoElo[];
+    let glicko_ranking: GlickoElo[] = fastify.players.glickoHistory(lobby_user);
 
     game_ranking = game_ranking.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     glicko_ranking = glicko_ranking.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -102,7 +97,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     let result: UserDetail = {} as UserDetail;
 
     // Technically it's a lobby user, but they are similar enough.
-    let user: UserDetail | undefined = fastify.database.prepare('SELECT id, nick, creation_date FROM lobby_players WHERE id=@id LIMIT 1').get({ "id": request.params.id }) as UserDetail;
+    let user: UserDetail | undefined = fastify.players.findById(request.params.id);
     if (!user) {
         reply.code(204);
         reply.send();
@@ -114,7 +109,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     // users.nick has no UNIQUE constraint, and the duplicates that exist were registered
     // before create_user refused a taken nick, so this lookup is genuinely ambiguous. Pin it
     // to the oldest account instead of taking whichever row SQLite happens to reach first.
-    const actual_user: User | undefined = fastify.database.prepare("SELECT id, nick, role FROM users WHERE nick = @nick ORDER BY id LIMIT 1").get({ "nick": user.nick }) as User | undefined;
+    const actual_user: User | undefined = fastify.users.findOldestByNick(user.nick);
 
     user = {
         id: actual_user ? actual_user.id : 0,
@@ -142,19 +137,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     let hasMoreData = true;
     result.replays = [];
     while (hasMoreData) {
-        // Adjust the SQL query to include LIMIT and OFFSET
-        const query = `
-        Select r.match_id ${hasStatisticCache ? "" : ", r.metadata"} From lobby_players lp
-        Inner Join replay_lobby_player_link rlp
-        On lp.id = rlp.lobby_player_id
-        Inner Join replays r
-        On r.match_id = rlp.match_id
-        Where lp.id = @id
-        LIMIT 50
-        OFFSET @offset;
-        `;
-
-        const replays = fastify.database.prepare(query).all({ "id": request.params.id, "offset": offset }) as Replays;
+        const replays = fastify.players.replaysPage(request.params.id, !hasStatisticCache, offset);
         // Check if there's no more data
         if (replays.length === 0) {
             hasMoreData = false;
@@ -195,10 +178,7 @@ const set_permission_for_user = (request: SetPermissionsRequest, reply: FastifyR
         return;
     }
 
-    fastify.database.prepare("Update users Set role = @role where id = @id").run({
-        "id": request.body.id,
-        "role": request.body.role,
-    });
+    fastify.users.setRole(request.body.id, request.body.role);
 
     reply.send(200);
 };
@@ -228,15 +208,7 @@ const compute_statistics = (result: UserDetail, statData: RawPlayerStatisticsDat
 
 };
 
-const getStatisticCache = (fastify: FastifyInstance, lobby_user_id: number): PlayerStatistics => {
-    const query = `
-    SELECT * FROM user_statistics_cache
-    WHERE lobby_player_id = @id
-    AND modification_date >= datetime('now', '-1 day')
-    `;
-
-    return fastify.database.prepare(query).get({ "id": lobby_user_id }) as PlayerStatistics;
-};
+const getStatisticCache = (fastify: FastifyInstance, lobby_user_id: number): PlayerStatistics | undefined => fastify.users.freshStatistics(lobby_user_id);
 
 
 const get_user_details_by_id = async (request: GetUserByIdRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
@@ -249,20 +221,17 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
     let result: UserDetail = {} as UserDetail;
 
-    const user: UserDetail | undefined = fastify.database.prepare('SELECT id, nick, role, creation_date FROM users WHERE id=@id LIMIT 1').get({ "id": request.params.id }) as UserDetail | undefined;
+    const user: UserDetail | undefined = fastify.users.findDetailById(request.params.id);
     if (!user) {
         reply.code(204);
         reply.send();
         return;
     }
 
-    const lobby_user: User = fastify.database.prepare(`
-    Select lp.id From users u
-    Inner Join lobby_players lp
-    On lp.nick = u.nick  Where u.id = @id`).get({ "id": request.params.id }) as User;
+    const lobby_user = fastify.players.idForUser(request.params.id);
 
-    if (lobby_user?.id)
-        result.graph = get_chart_data(fastify, lobby_user.id);
+    if (lobby_user)
+        result.graph = get_chart_data(fastify, lobby_user);
 
 
     result = Object.assign(result, user);
@@ -271,8 +240,8 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
     let cache : PlayerStatistics | undefined  = undefined;
 
-    if(lobby_user?.id)
-        cache = getStatisticCache(fastify, lobby_user.id);
+    if(lobby_user)
+        cache = getStatisticCache(fastify, lobby_user);
 
     const hasStatisticCache = !!cache;
     if (hasStatisticCache && cache) {
@@ -288,21 +257,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     let hasMoreData = true;
     result.replays = [];
     while (hasMoreData) {
-        // Adjust the SQL query to include LIMIT and OFFSET
-        const query = `
-        Select r.match_id ${hasStatisticCache ? "" : ", r.metadata"} From users u
-        Inner Join lobby_players lp
-        On lp.nick = u.nick
-        Inner Join replay_lobby_player_link rlp
-        On lp.id = rlp.lobby_player_id
-        Inner Join replays r
-        On r.match_id = rlp.match_id
-        Where u.id = @id
-        LIMIT 50
-        OFFSET @offset;
-        `;
-
-        const replays = fastify.database.prepare(query).all({ "id": lobby_user?.id, "offset": offset }) as Replays;
+        const replays = fastify.players.replaysPageForUser(lobby_user, !hasStatisticCache, offset);
 
         // Check if there's no more data
         if (replays.length === 0) {
@@ -339,7 +294,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
 const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     try {
-        const users: User[] = fastify.database.prepare("SELECT id, nick, role FROM users WHERE email = @email and password = @password LIMIT 1").all({ "email": request.body.email, "password": request.body.password }) as User[];
+        const users: User[] = fastify.users.findByCredentials(request.body.email, request.body.password);
         if (!users || !users.length) {
             reply.code(204);
             reply.send();
@@ -384,7 +339,7 @@ const get_user_by_id = (request: GetUserByIdRequest, reply: FastifyReply, fastif
     }
 
     try {
-        const user: User = fastify.database.prepare('SELECT id, nick, role FROM users WHERE id = @id LIMIT 1').get({ "id": request.params.id }) as User;
+        const user = fastify.users.findById(request.params.id);
         if (!user) {
             reply.code(204);
             return;
@@ -407,7 +362,7 @@ const get_latest_users = (request: FastifyRequest, reply: FastifyReply, fastify:
     }
 
     try {
-        const users: LatestUser[] = fastify.database.prepare('SELECT id, nick, role, creation_date FROM users ORDER BY modification_date DESC LIMIT 10').all() as LatestUser[];
+        const users: LatestUser[] = fastify.users.latest();
         if (!users || !users.length) {
             reply.code(204);
             reply.send();
@@ -430,7 +385,7 @@ const get_users = (request: FastifyRequest, reply: FastifyReply, fastify: Fastif
     }
 
     try {
-        const users: User[] = fastify.database.prepare('SELECT id, nick, role FROM users').all() as User[];
+        const users: User[] = fastify.users.all();
         if (!users || !users.length) {
             reply.code(204);
             return;
@@ -453,9 +408,7 @@ const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastif
     }
 
     try {
-        const result_for_link = fastify.database.prepare('DELETE FROM replay_user_link WHERE user_id = @userId').run({ "userId": request.params.id });
-        const result = fastify.database.prepare('DELETE FROM users WHERE id = @userId').run({ "userId": request.params.id });
-        reply.send([result_for_link, result]);
+        reply.send(fastify.users.deleteWithLinks(request.params.id));
     }
     catch (err) {
         fastify.log.error(err);
@@ -475,9 +428,7 @@ const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: Fast
         // who never made an account, and those must stay registrable.
         //
         // NOCASE folds ASCII only, which is the whole alphabet 0 A.D. nicks use.
-        const taken = fastify.database
-            .prepare("SELECT id FROM users WHERE nick = @nick COLLATE NOCASE LIMIT 1")
-            .get({ "nick": request.body.nick }) as { id: number } | undefined;
+        const taken = fastify.users.isNickTaken(request.body.nick);
 
         if (taken) {
             fastify.log.warn({ nick: request.body.nick }, "registration refused: nick already taken");
@@ -486,12 +437,7 @@ const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: Fast
             return;
         }
 
-        fastify.database.prepare(`INSERT INTO users (nick, password, email, role) VALUES(@nick, @password, @email, @role)`).run({
-            "nick": request.body.nick,
-            "password": request.body.password,
-            "email": request.body.email,
-            "role": EUserRole.READER,
-        });
+        fastify.users.create(request.body.nick, request.body.password, request.body.email, EUserRole.READER);
         reply.code(201);
     }
     catch (err) {
@@ -673,48 +619,19 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
 };
 
 function cacheUserStatistics(fastify : FastifyInstance, request: GetUserByIdRequest, result: { id: number; nick: string; role: EUserRole; creation_date: Date; AverageCPM: number; WinRateRatio: number; TotalPlayedTime: number; SecondMostUsedCmd: string; MostUsedCmd: string; MatchCount: number; replays: { date: string; mapName: string; playerNames: string[]; civs: string[]; matchId: string; }[]; graph?: { glicko_series: { x: string; y: number; }[]; glicko_series_avg: { x: string; y: number; }[]; game_series: { x: string; y: number; }[]; game_series_avg: { x: string; y: number; }[]; current_game_elo?: number | undefined; current_glicko_elo?: { date: string; elo: number; deviation: number; volatility: number; preview_deviation: number; } | undefined; } | undefined; }) {
-    const { count } = fastify.database.prepare(`
-        Select Count(*) as count
-        From user_statistics_cache
-        Where lobby_player_id = @lobby_player_id;`)
-        .get({ 'lobby_player_id': request.params.id }) as { count: number; };
+    const currentDate = new Date();
+    const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
 
-
-        const currentDate = new Date();
-        const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
-
-
-        if (count === 0)
-        fastify.database.prepare(`Insert Into user_statistics_cache (total_played_time, match_count, second_most_used_cmd, most_used_cmd, win_rate_ratio, average_cpm, lobby_player_id)
-            Values (@total_played_time, @match_count, @second_most_used_cmd, @most_used_cmd, @win_rate_ratio, @average_cpm, @lobby_player_id);
-            `)
-        .run({
-            "total_played_time": result.TotalPlayedTime,
-            "match_count": result.MatchCount,
-            "second_most_used_cmd": result.SecondMostUsedCmd,
-            "most_used_cmd": result.MostUsedCmd,
-            "win_rate_ratio": result.WinRateRatio,
-            "average_cpm": result.AverageCPM,
-            "lobby_player_id": request.params.id,
-            "modification_date": formattedDate,
-            "creation_date": formattedDate
-        });
-    else
-        fastify.database.prepare(`
-            Update user_statistics_cache
-            Set total_played_time = @total_played_time, match_count = @match_count, second_most_used_cmd = @second_most_used_cmd, most_used_cmd = @most_used_cmd, win_rate_ratio = @win_rate_ratio, average_cpm = @average_cpm, modification_date = @modification_date
-            Where lobby_player_id = @lobby_player_id`)
-        .run({
-            "total_played_time": result.TotalPlayedTime,
-            "match_count": result.MatchCount,
-            "second_most_used_cmd": result.SecondMostUsedCmd,
-            "most_used_cmd": result.MostUsedCmd,
-            "win_rate_ratio": result.WinRateRatio,
-            "average_cpm": result.AverageCPM,
-            "modification_date": formattedDate,
-            "lobby_player_id": request.params.id,
-        });
+    fastify.users.saveStatistics({
+        "total_played_time": result.TotalPlayedTime,
+        "match_count": result.MatchCount,
+        "second_most_used_cmd": result.SecondMostUsedCmd,
+        "most_used_cmd": result.MostUsedCmd,
+        "win_rate_ratio": result.WinRateRatio,
+        "average_cpm": result.AverageCPM,
+        "lobby_player_id": request.params.id,
+        "modification_date": formattedDate
+    });
 }
-
 
 export { UserController };

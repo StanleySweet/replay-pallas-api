@@ -27,7 +27,8 @@ const check = (name, fn) => {
 // ---------------------------------------------------------------- injection
 const ratings = read('controllers/LocalRatingsController.ts');
 const start = ratings.indexOf('const get_player_list');
-const query = ratings.slice(start, start + 2400);
+// The controller builds the list, the repository holds the statement.
+const query = ratings.slice(start, start + 2400) + read('repositories/LocalRatingsRepository.ts');
 
 check('get_player_list no longer concatenates nicks into SQL', () => {
     assert.ok(
@@ -50,7 +51,8 @@ check('get_player_list still bails before building an empty IN ()', () => {
 });
 
 // ---------------------------------------------------------------- dedup
-const replayController = read('controllers/ReplayController.ts');
+// The controller dedups, the repository asks the database about the candidate ids.
+const replayController = read('controllers/ReplayController.ts') + read('repositories/ReplayRepository.ts');
 
 check('upload no longer loads every match_id row', () => {
     assert.ok(
@@ -69,7 +71,7 @@ check('upload queries only the candidate ids', () => {
         'expected a parameterised IN clause over the candidate chunk'
     );
     assert.ok(
-        /candidateIds\.slice\(i, i \+ 500\)/.test(replayController),
+        /ids\.slice\(i, i \+ IN_CHUNK\)/.test(replayController),
         'candidate ids are not chunked'
     );
 });
@@ -89,7 +91,7 @@ check('upload dedups within the zip as well as against the DB', () => {
 });
 
 check('the chunk length stays inside the SQLite host parameter limit', () => {
-    const step = Number(replayController.match(/candidateIds\.slice\(i, i \+ (\d+)\)/)[1]);
+    const step = Number(replayController.match(/const IN_CHUNK = (\d+)/)[1]);
     assert.ok(step >= 1 && step <= 999, `chunk size ${step} is outside the safe host-parameter range`);
 });
 

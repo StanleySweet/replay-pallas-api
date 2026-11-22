@@ -6,6 +6,7 @@
 import { Database } from 'better-sqlite3';
 import { Replays } from '../types/Replay';
 import { unpackBlob } from "../replays/blobCodec";
+import { GlickoRepository } from "../repositories/GlickoRepository";
 import { RatingCalculator } from './RatingCalculator';
 import { RatingCalculatorSettings } from './RatingCalculatorSettings';
 import { Rating } from './Rating';
@@ -72,6 +73,7 @@ function getRatedPair(playerData: PlayerData[] | undefined): { winner: RatedPlay
 
 class Glicko2Manager {
     database: Database;
+    store: GlickoRepository;
     ratings: PallasGlickoRating[];
     calculator: RatingCalculator;
     rebuilding: boolean;
@@ -81,17 +83,17 @@ class Glicko2Manager {
         settings.RatingPeriodsPerDay = 0.21436;
         this.calculator = new RatingCalculator(settings);
         this.database = database;
+        this.store = new GlickoRepository(database);
         this.ratings = [];
         this.rebuilding = false;
     }
 
     hasCache(): boolean {
-        const { count }: { count: number } = this.database.prepare('Select Count(*) as count From glicko2_rankings;').get() as { count: number };
-        return count > 0;
+        return this.store.hasAny();
     }
 
     load(): void {
-        this.ratings = this.database.prepare('Select * From glicko2_rankings;').all() as PallasGlickoRating[];
+        this.ratings = this.store.all<PallasGlickoRating>();
         logger.info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded for ${new Set(this.ratings.map(a => a.lobby_player_id)).size} player(s).`);
     }
 
@@ -167,8 +169,8 @@ class Glicko2Manager {
             return;
         try {
             this.rebuilding = true;
-            this.database.prepare('Delete From glicko2_rankings;').run();
-            const replays: Replays = this.database.prepare('Select r.metadata, r.creation_date From replays r Where 2 = (Select Count(*) From replay_lobby_player_link lp Where lp.match_id = r.match_id LIMIT 1) Order by r.creation_date ASC;').all() as Replays;
+            this.store.clear();
+            const replays: Replays = this.store.ratedPairReplays();
             logger.info(`Rebuilding the glicko2 database. ${replays.length} replays(s) were found.`);
             this.ratings = [];
             this.process_replays(replays);
@@ -181,28 +183,8 @@ class Glicko2Manager {
     }
 
     save(): void {
-        for (const rating of this.ratings) {
-            const { count } = this.database.prepare('Select Count(*) as count From glicko2_rankings Where lobby_player_id = @lobby_player_id and match_count = @match_count;').get({ "match_count": rating.match_count,'lobby_player_id': rating.lobby_player_id }) as { count: number };
-            if (count === 0)
-                this.database.prepare('Insert Into glicko2_rankings (elo, deviation, volatility, lobby_player_id, preview_deviation, match_count, date) Values (@elo, @deviation, @volatility, @lobby_player_id, @preview_deviation, @match_count, @date);').run({
-                    "elo": rating.elo,
-                    "deviation": rating.deviation,
-                    "volatility": rating.volatility,
-                    "match_count": rating.match_count,
-                    "date": rating.date,
-                    "lobby_player_id": rating.lobby_player_id,
-                    "preview_deviation": rating.preview_deviation
-                });
-            else
-                this.database.prepare('Update glicko2_rankings Set elo = @elo, deviation = @deviation, volatility = @volatility, preview_deviation = @preview_deviation Where lobby_player_id = @lobby_player_id and match_count = @match_count;').run({
-                    "elo": rating.elo,
-                    "deviation": rating.deviation,
-                    "volatility": rating.volatility,
-                    "lobby_player_id": rating.lobby_player_id,
-                    "preview_deviation": rating.preview_deviation,
-                    "match_count": rating.match_count,
-                });
-        }
+        for (const rating of this.ratings)
+            this.store.save(rating);
     }
 }
 

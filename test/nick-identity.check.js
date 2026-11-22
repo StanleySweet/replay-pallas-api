@@ -18,6 +18,8 @@ const D = require('better-sqlite3');
 const SRC = path.join(__dirname, '..', 'src');
 const controller = fs.readFileSync(path.join(SRC, 'controllers', 'UserController.ts'), 'utf8');
 const init = fs.readFileSync(path.join(SRC, 'index.ts'), 'utf8');
+// The SQL lives in the repository, the controller only calls it.
+const userRepo = fs.readFileSync(path.join(SRC, 'repositories', 'UserRepository.ts'), 'utf8');
 const migrations = path.join(SRC, 'migrations');
 
 let passed = 0;
@@ -36,7 +38,7 @@ const check = (name, fn) => {
 const createUser = controller.slice(controller.indexOf('const create_user'), controller.indexOf('const UserController'));
 
 check('create_user refuses a nick that is already taken', () => {
-    assert.ok(/SELECT id FROM users WHERE nick = @nick COLLATE NOCASE LIMIT 1/.test(createUser),
+    assert.ok(/SELECT id FROM users WHERE nick = @nick COLLATE NOCASE LIMIT 1/.test(userRepo) && /isNickTaken\(/.test(createUser),
         'no case-insensitive taken-nick lookup');
     assert.ok(/if \(taken\)/.test(createUser), 'the lookup result is ignored');
     assert.ok(/reply\.code\(400\)/.test(createUser.slice(createUser.indexOf('if (taken)'))),
@@ -45,14 +47,14 @@ check('create_user refuses a nick that is already taken', () => {
 
 check('the refusal happens BEFORE the insert', () => {
     assert.ok(
-        createUser.indexOf('if (taken)') < createUser.indexOf('INSERT INTO users'),
+        createUser.indexOf('if (taken)') < createUser.indexOf('fastify.users.create('),
         'the insert runs before the check, so the guard is decorative'
     );
 });
 
 check('the check compares against registered accounts, not lobby players', () => {
     // 355 lobby_players nicks have never registered an account and must stay registrable.
-    const sql = createUser.match(/SELECT id FROM users[^;]+/)[0];
+    const sql = userRepo.match(/SELECT id FROM users[^;]+/)[0];
     assert.ok(!/lobby_players/.test(sql), 'the guard wrongly rejects nicks that only played a game');
 });
 
@@ -96,7 +98,7 @@ db.exec(`INSERT INTO users (nick, password, email, role) VALUES ('Sanafur','h1',
 
 check('the lobby-nick -> user lookup is deterministic', () => {
     assert.ok(
-        /SELECT id, nick, role FROM users WHERE nick = @nick ORDER BY id LIMIT 1/.test(controller),
+        /SELECT id, nick, role FROM users WHERE nick = @nick ORDER BY id LIMIT 1/.test(userRepo),
         'the lookup still has no ORDER BY, so it returns an arbitrary duplicate'
     );
     const rows = db.prepare('SELECT id, role FROM users WHERE nick = ? ORDER BY id LIMIT 1').all('Sanafur');
@@ -109,7 +111,7 @@ check('the same ambiguity in the metrics Basic auth is left alone, deliberately'
     // /metrics compares the bcrypt hash too, so a duplicate cannot escalate past the role
     // check. Changing it is out of scope for this fix, so only assert it is not silently
     // different from what we expect.
-    assert.ok(/WHERE nick = @nick AND password = @password LIMIT 1/.test(init),
+    assert.ok(/WHERE nick = @nick AND password = @password LIMIT 1/.test(userRepo),
         'the metrics lookup changed; re-check whether that was intended');
 });
 
