@@ -13,7 +13,7 @@ import { PallasTokenPayload, PallasUserToken, PallasUserTokenSchema } from "../t
 import { JOSE_ALG as alg, JOSE_SECRET } from "../project_globals";
 import { Replays } from "../types/Replay";
 import { mode } from "../Utils";
-import snappy from 'snappy';
+import { unpackBlob } from "../replays/blobCodec";
 import { LocalRatingsReplay } from "../local-ratings/Replay";
 import { RawPlayerStatisticsData } from "../types/RawPlayerStatisticsData";
 import { PlayerStatistics } from "../types/PlayerStatistics";
@@ -170,7 +170,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
                 result.replays.push(replayListItem);
 
             if (!hasStatisticCache) {
-                element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+                element.metadata = JSON.parse(unpackBlob(element.metadata as string));
                 statisticData.push({
                     "PlayerData": element.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0],
                     "MatchDuration": element.metadata.settings?.MatchDuration ?? 0
@@ -319,7 +319,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
                 result.replays.push(replayListItem);
 
             if (!hasStatisticCache) {
-                element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+                element.metadata = JSON.parse(unpackBlob(element.metadata as string));
                 statisticData.push({
                     "PlayerData": element.metadata.settings?.PlayerData?.filter(a => a.NameWithoutRating == result.nick)[0],
                     "MatchDuration": element.metadata.settings?.MatchDuration ?? 0

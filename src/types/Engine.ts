@@ -2,7 +2,7 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { Database, Statement } from 'better-sqlite3';
 import { ReplayMetaData } from "./ReplayMetaData";
 import Path from 'path';
-import { uncompressSync } from "snappy";
+import { unpackBlob } from "../replays/blobCodec";
 import { LocalRatingsMetadataContainer } from "../local-ratings/types/MetadataContainer";
 
 class Engine {
@@ -11,7 +11,7 @@ class Engine {
             return {} as ReplayMetaData;
 
         const replay = this.database.prepare('Select metadata as attribs From replays where match_id = @match_id LIMIT 1;').get({ "match_id": directory }) as LocalRatingsMetadataContainer;
-        return JSON.parse(uncompressSync(replay.attribs as string, { asBuffer: false }) as string) as ReplayMetaData;
+        return JSON.parse(unpackBlob(replay.attribs as string)) as ReplayMetaData;
     }
     ConfigDB_RemoveValue(section: string, key: string) {
         if (!this.database)
@@ -28,7 +28,7 @@ class Engine {
         for (let i = 0; i < replays.length; ++i) {
             const element = replays[i];
             replays[i] = new LocalRatingsMetadataContainer();
-            replays[i].attribs = JSON.parse(uncompressSync(element.attribs as string, { asBuffer: false }) as string);
+            replays[i].attribs = JSON.parse(unpackBlob(element.attribs as string));
             replays[i].directory = element.directory;
         }
 

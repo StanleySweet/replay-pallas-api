@@ -5,7 +5,7 @@
 
 import { ReplayMetaDataSchema } from "./ReplayMetaData";
 import { z } from "zod";
-import snappy from 'snappy';
+import { packBlob } from "../replays/blobCodec";
 
 const ReplaySchema = z.object({
     metadata: ReplayMetaDataSchema,
@@ -53,8 +53,8 @@ const ToDbFormat = (replay: Replay) => {
 
     return {
         "matchId": replay.metadata.matchID,
-        "metadata": snappy.compressSync(JSON.stringify(replay.metadata)),
-        "filedata": snappy.compressSync(JSON.stringify(replay.filedata)),
+        "metadata": packBlob(JSON.stringify(replay.metadata)),
+        "filedata": packBlob(JSON.stringify(replay.filedata)),
         "creationDate": formattedDate
     };
 };

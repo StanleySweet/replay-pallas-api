@@ -5,7 +5,7 @@
 
 import { Database } from 'better-sqlite3';
 import { Replays } from '../types/Replay';
-import snappy from 'snappy';
+import { unpackBlob } from "../replays/blobCodec";
 import { RatingCalculator } from './RatingCalculator';
 import { RatingCalculatorSettings } from './RatingCalculatorSettings';
 import { Rating } from './Rating';
@@ -103,7 +103,7 @@ class Glicko2Manager {
         
         for (const element of replays) {
             if (Buffer.isBuffer(element.metadata))
-                element.metadata = JSON.parse(snappy.uncompressSync(element.metadata as Buffer, { asBuffer: false }) as string);
+                element.metadata = JSON.parse(unpackBlob(element.metadata as Buffer));
 
             const date_string = element.creation_date + "";
             if (typeof element.creation_date === 'string' || element.creation_date instanceof String)

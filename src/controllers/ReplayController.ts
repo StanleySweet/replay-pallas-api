@@ -13,7 +13,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 import { ReplayMetaData } from "../types/ReplayMetaData";
 import { extract_commands_data, extract_commands_stats } from "../replays/commandsParser";
 import { update_LocalRatings } from "../local-ratings/utilities/functions_utility";
-import snappy from 'snappy';
+import { packBlob, unpackBlob } from "../replays/blobCodec";
 import EUserRole from "../enumerations/EUserRole";
 import { z } from "zod";
 import { MetadataSettings } from "../types/MetadataSettings";
@@ -107,9 +107,9 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
 
         for (const replay of replays) {
             if (Buffer.isBuffer(replay.metadata))
-                replay.metadata = JSON.parse(snappy.uncompressSync(replay.metadata, { asBuffer: false }) as string);
+                replay.metadata = JSON.parse(unpackBlob(replay.metadata));
             if (Buffer.isBuffer(replay.filedata))
-                replay.filedata = snappy.uncompressSync(replay.filedata, { asBuffer: false }) as string;
+                replay.filedata = unpackBlob(replay.filedata);
 
             const commandsData = extract_commands_data(replay.filedata);
             replay.metadata = Object.assign(replay.metadata, commandsData);
@@ -186,7 +186,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
                 const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
                 updateStatement.run({
                     match_id: replay.metadata.matchID,
-                    metadata: snappy.compressSync(JSON.stringify(replay.metadata)),
+                    metadata: packBlob(JSON.stringify(replay.metadata)),
                     modification_date: formattedDate
                 });
             }
@@ -243,7 +243,7 @@ const get_ranks = (replays: Replays): LobbyRankingHistoryEntries => {
     const ranks: LobbyRankingHistoryEntries = [];
     for (const element of replays) {
         if (Buffer.isBuffer(element.metadata))
-            element.metadata = JSON.parse(snappy.uncompressSync(element.metadata as Buffer, { asBuffer: false }) as string);
+            element.metadata = JSON.parse(unpackBlob(element.metadata as Buffer));
         const playerData = element.metadata.settings?.PlayerData;
         if (!playerData)
             continue;
@@ -526,7 +526,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const fileJson = JSON.parse(await snappy.uncompress(file.filedata, { asBuffer: false }) as string);
+        const fileJson = JSON.parse(unpackBlob(file.filedata));
 
         const zip = new AdmZip();
         for (const file of Object.keys(fileJson))
@@ -565,11 +565,11 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         const replay: ReplayDetails = server.database.prepare('SELECT match_id, metadata, filedata FROM replays WHERE match_id = @matchId LIMIT 1').get({ "matchId": matchId }) as ReplayDetails;
         if(replay?.metadata)
-            replay.metadata = JSON.parse(await snappy.uncompress(replay.metadata as string, { asBuffer: false }) as string);
+            replay.metadata = JSON.parse(unpackBlob(replay.metadata as string));
 
         if(replay?.filedata)
         {
-            const data = await snappy.uncompress(replay.filedata as string, { asBuffer: false }) as string;
+            const data = unpackBlob(replay.filedata as string);
 
             // Compute the commands data per player to give a graph for chart.js
             const result = extract_commands_stats(data);
@@ -639,7 +639,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         }
         const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays ORDER BY creation_date desc LIMIT 10;').all() as Replays;
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+            element.metadata = JSON.parse(unpackBlob(element.metadata as string));
         reply.send(replays);
     });
 
@@ -689,7 +689,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
 
         const replays: Replays = server.database.prepare('SELECT match_id, metadata FROM replays ORDER BY creation_date desc').all() as Replays;
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+            element.metadata = JSON.parse(unpackBlob(element.metadata as string));
         reply.send(replays);
     });
 
@@ -798,7 +798,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         }
 
         for (const element of replays)
-            element.metadata = JSON.parse(await snappy.uncompress(element.metadata as string, { asBuffer: false }) as string);
+            element.metadata = JSON.parse(unpackBlob(element.metadata as string));
 
         reply.send(replays);
     });
