@@ -94,6 +94,11 @@ class Glicko2Manager {
         return this.store.hasAny();
     }
 
+    // False on a database from before ratings were split per release: the first start then rebuilds.
+    hasReleaseRatings(): boolean {
+        return this.store.hasAnyRelease();
+    }
+
     load(): void {
         this.ratings = this.store.all<PallasGlickoRating>();
         logger.info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded for ${new Set(this.ratings.map(a => a.lobby_player_id)).size} player(s).`);

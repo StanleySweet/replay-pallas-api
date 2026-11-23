@@ -101,12 +101,21 @@ class LocalRatingsCalculator {
         }
     }
 
-    rebuild(cache: LocalRatingsCache, minifier: LocalRatingsMinifier) {
+    // keep, when given, limits the rebuild to the replays it accepts: how a release is rated alone.
+    // source is the replay database to rate when the caller already holds it, so several rebuilds
+    // in a row do not each read the whole replay cache again.
+    rebuild(cache: LocalRatingsCache, minifier: LocalRatingsMinifier, keep?: (matchId: string) => boolean, source?: LocalRatingsReplayDatabase) {
         this.ratingsDatabase = {};
         this.historyDatabase = {};
-        const replayDB = new LocalRatingsReplayDB(cache, minifier);
-        replayDB.load();
-        this.merge(replayDB.replayDatabase);
+        let replayDatabase = source;
+        if (!replayDatabase) {
+            const replayDB = new LocalRatingsReplayDB(cache, minifier);
+            replayDB.load();
+            replayDatabase = replayDB.replayDatabase;
+        }
+        this.merge(keep
+            ? Object.fromEntries(Object.entries(replayDatabase).filter(([matchId]) => keep(matchId)))
+            : replayDatabase);
     }
 
     merge(newReplays: LocalRatingsReplayDatabase) {

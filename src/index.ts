@@ -259,10 +259,10 @@ const start = async () => {
     server.localRatings = new LocalRatingsRepository(bdb);
     backfillGameRelease(server.replays);
 
-    const { ratingsDb, replayDb, aliasDb } = init_LocalRatings();
+    const { ratingsDb, replayDb, aliasDb, releases } = init_LocalRatings(server.replays);
 
     server.glicko2Manager = new Glicko2Manager(bdb);
-    if (server.glicko2Manager.hasCache()) {
+    if (server.glicko2Manager.hasCache() && server.glicko2Manager.hasReleaseRatings()) {
         server.glicko2Manager.load();
     }
     else {
@@ -274,6 +274,7 @@ const start = async () => {
         () => { 
             server.glicko2Manager.rebuild() 
             server.ratingsDb.rebuild();
+            server.releases.rebuild();
             bdb.pragma('optimize');
         },
         (err) => { /* handle errors here */ }
@@ -283,6 +284,7 @@ const start = async () => {
     server.ratingsDb = ratingsDb;
     server.replayDb = replayDb;
     server.aliasDb = aliasDb;
+    server.releases = releases;
 
     await server.listen({ port: +(process.env.API_PORT ?? 8080), host: "0.0.0.0" });
 };

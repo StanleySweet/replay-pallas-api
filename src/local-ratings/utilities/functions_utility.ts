@@ -8,6 +8,8 @@ import { LocalRatingsCache } from '../Cache';
 import { LocalRatingsReplayDB } from '../ReplayDB';
 import { LocalRatingsRatingsDB } from '../RatingsDB';
 import { LocalRatingsAliasManager } from '../Alias';
+import { LocalRatingsReleases } from '../Releases';
+import { ReplayRepository } from '../../repositories/ReplayRepository';
 import { LocalRatingsMinifier } from '../Minifier';
 import { LocalRatingsReplayDatabase } from '../types/ReplayDatabase';
 
@@ -74,6 +76,7 @@ export interface LocalRatingsState {
     "ratingsDb": LocalRatingsRatingsDB,
     "replayDb": LocalRatingsReplayDB,
     "aliasDb": LocalRatingsAliasManager,
+    "releases": LocalRatingsReleases,
 }
 
 declare module 'fastify' {
@@ -81,6 +84,7 @@ declare module 'fastify' {
         ratingsDb: LocalRatingsRatingsDB
         replayDb: LocalRatingsReplayDB,
         aliasDb: LocalRatingsAliasManager
+        releases: LocalRatingsReleases
     }
 }
 
@@ -89,7 +93,7 @@ declare module 'fastify' {
  * Return the ratings database, after performing an update with new replays
  * @returns {object}
  */
-function init_LocalRatings() : LocalRatingsState {
+function init_LocalRatings(replays: ReplayRepository) : LocalRatingsState {
     // Write default settings in user.cfg if not present
     const settings = new LocalRatingsSettingsManager();
     settings.createDefaultSettingsIfNotExist();
@@ -99,6 +103,7 @@ function init_LocalRatings() : LocalRatingsState {
     const replayDB = new LocalRatingsReplayDB(cache, minifier);
     const ratingsDB = new LocalRatingsRatingsDB(cache, minifier);
     const alias = new LocalRatingsAliasManager(cache);
+    const releases = new LocalRatingsReleases(cache, minifier, replays, replayDB);
     // Aliases are not derived from replays, so they are read in every case; merge() no longer reloads them.
     alias.load();
     if (replayDB.cache.isUpdateRequired())
@@ -108,17 +113,21 @@ function init_LocalRatings() : LocalRatingsState {
         // Recorded only now: both rebuilds persist their own cache before returning, so the
         // version can never claim a cache is current while part of it is still stale.
         replayDB.cache.markAsCurrent();
+        releases.rebuild();
     }
     else
     {
         replayDB.load();
         ratingsDB.load();
+        // Loads the sets stored per release, and computes the ones that are missing.
+        releases.load();
     }
 
     const data : LocalRatingsState = {
         "ratingsDb": ratingsDB,
         "replayDb": replayDB,
-        "aliasDb" : alias
+        "aliasDb" : alias,
+        "releases": releases
     } as LocalRatingsState;
 
     update_LocalRatings(data);
@@ -132,6 +141,7 @@ function update_LocalRatings(state: LocalRatingsState)
     state.ratingsDb.load();
     state.ratingsDb.merge(newReplayDatabase);
     state.ratingsDb.save();
+    state.releases.merge(newReplayDatabase);
 
     state.aliasDb.merge(state.ratingsDb.ratingsDatabase, undefined);
     state.aliasDb.merge(undefined, state.ratingsDb.historyDatabase);

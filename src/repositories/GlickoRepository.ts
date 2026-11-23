@@ -29,6 +29,10 @@ class GlickoRepository {
         return count > 0;
     }
 
+    hasAnyRelease(): boolean {
+        return !!this.db.prepare('Select 1 From glicko2_rankings Where game_release Is Not Null Limit 1;').get();
+    }
+
     all<T>(): T[] {
         return this.db.prepare('Select * From glicko2_rankings;').all() as T[];
     }

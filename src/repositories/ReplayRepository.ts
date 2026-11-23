@@ -79,6 +79,12 @@ class ReplayRepository {
         return new Set(rows.map(row => row.match_id));
     }
 
+    // The release of every replay, for splitting work per release without a query per replay.
+    releaseByMatchId(): Map<string, number> {
+        const rows = this.db.prepare('SELECT match_id, game_release FROM replays').all() as { match_id: string, game_release: number | null }[];
+        return new Map(rows.map(row => [row.match_id, row.game_release ?? 0]));
+    }
+
     withoutRelease(): { match_id: string, metadata: Buffer }[] {
         return this.db.prepare('SELECT match_id, metadata FROM replays WHERE game_release IS NULL').all() as { match_id: string, metadata: Buffer }[];
     }

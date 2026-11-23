@@ -224,6 +224,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
 
     fastify.replayDb.rebuild();
     fastify.ratingsDb.rebuild();
+    fastify.releases.rebuild();
     fastify.glicko2Manager.rebuild();
 
     reply.code(200);
@@ -463,6 +464,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
                 "ratingsDb": server.ratingsDb,
                 "replayDb": server.replayDb,
                 "aliasDb": server.aliasDb,
+                "releases": server.releases,
             });
         }
 
@@ -711,10 +713,12 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         // Drop it from memory and recompute the ratings, so a deleted replay stops counting at once.
         server.replayDb.delete(request.params.match_id);
         server.ratingsDb.rebuild();
+        server.releases.rebuild();
         update_LocalRatings({
             "ratingsDb": server.ratingsDb,
             "replayDb": server.replayDb,
             "aliasDb": server.aliasDb,
+            "releases": server.releases,
         });
 
         reply.code(200);

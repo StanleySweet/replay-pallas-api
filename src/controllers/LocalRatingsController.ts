@@ -16,6 +16,7 @@ import { LocalRatingsSettingsManager } from "../local-ratings/Settings";
 import { LocalRatingsPlayerFilter } from "../local-ratings/PlayerFilter";
 import { Civilizations } from "../types/Civilization";
 import { releaseParam } from "../replays/releaseParam";
+import { LocalRatingsRatingsDB } from "../local-ratings/RatingsDB";
 
 const RankDataSchema = z.object({
     "rank": z.number(),
@@ -141,6 +142,16 @@ type PutLocalRatingsOptionsModel = z.infer<typeof PutLocalRatingsOptionsSchema>;
 type PlayerProfile = z.infer<typeof PlayerProfileSchema>;
 type EvolutionChartData = z.infer<typeof EvolutionChartDataSchema>;
 
+// The ratings of the 0 A.D. release asked for with ?release=, or the ones over every replay without it.
+// A release nobody played has no ratings, so it answers with empty ones.
+function ratingsFor(request: FastifyRequest, fastify: FastifyInstance): Pick<LocalRatingsRatingsDB, "ratingsDatabase" | "historyDatabase"> {
+    const release = releaseParam(request);
+    if (release === null)
+        return fastify.ratingsDb;
+
+    return fastify.releases.get(release) ?? { ratingsDatabase: {}, historyDatabase: {} };
+}
+
 type GetPlayerProfileRequest = FastifyRequest<{ Body: GetPlayerProfileModel }>;
 type ReplayDistributionRequest = FastifyRequest<{ Body: ReplayDistributionRequestModel }>;
 type PutAliasGroupsRequest = FastifyRequest<{ Body: PutAliasGroupsModel }>;
@@ -187,11 +198,13 @@ const rebuild_database = (request: FastifyRequest, reply: FastifyReply, fastify:
     try {
         fastify.replayDb.rebuild();
         fastify.ratingsDb.rebuild();
+        fastify.releases.rebuild();
 
         update_LocalRatings({
             "ratingsDb": fastify.ratingsDb,
             "replayDb": fastify.replayDb,
             "aliasDb": fastify.aliasDb,
+            "releases": fastify.releases,
         });
         reply.send();
     }
@@ -260,7 +273,7 @@ const get_civ_chart_data = (request: GetPlayerProfileRequest, reply: FastifyRepl
 
     const player = request.body.player;
     // Merge aliases
-    const historyDatabase = fastify.ratingsDb.historyDatabase;
+    const historyDatabase = ratingsFor(request, fastify).historyDatabase;
     const playerData = historyDatabase[player];
 
     const getCivSingleGamesRatings = (civ: string) => {
@@ -314,7 +327,7 @@ const get_evolution_chart_data = async (request: GetPlayerProfileRequest, reply:
 
     const player = request.body.player;
     // Merge aliases
-    const historyDatabase = fastify.ratingsDb.historyDatabase;
+    const historyDatabase = ratingsFor(request, fastify).historyDatabase;
     const playerData = historyDatabase[player];
 
     // Retrieve relevant data
@@ -374,7 +387,7 @@ const get_distribution_chart_data = (request: GetPlayerProfileRequest, reply: Fa
     }
 
     const player = request.body.player;
-    const ratingsDatabase = fastify.ratingsDb.ratingsDatabase;
+    const ratingsDatabase = ratingsFor(request, fastify).ratingsDatabase;
     const playerEntry = ratingsDatabase[player];
 
     if (!playerEntry) {
@@ -469,7 +482,7 @@ const get_replay_distribution_chart_data = (request: ReplayDistributionRequest, 
         return;
     }
 
-    const ratingsDatabase = fastify.ratingsDb.ratingsDatabase ?? {};
+    const ratingsDatabase = ratingsFor(request, fastify).ratingsDatabase ?? {};
     const ratingsList = Object.values(ratingsDatabase)
         .map(entry => entry.rating)
         .sort((a, b) => a - b);
@@ -526,6 +539,7 @@ const put_alias_groups = (request: PutAliasGroupsRequest, reply: FastifyReply, f
         "ratingsDb": fastify.ratingsDb,
         "replayDb": fastify.replayDb,
         "aliasDb": fastify.aliasDb,
+        "releases": fastify.releases,
     });
 
     reply.send(groups);
@@ -577,7 +591,7 @@ const get_player_list = (request: FastifyRequest, reply: FastifyReply, fastify: 
         return;
     }
 
-    const db = fastify.ratingsDb.ratingsDatabase;
+    const db = ratingsFor(request, fastify).ratingsDatabase;
     const playerFilter = new LocalRatingsPlayerFilter(db);
 
     // Create an array of players, rating, matches.
@@ -638,7 +652,7 @@ const get_player_profile = async (request: GetPlayerProfileRequest, reply: Fasti
     const rank = request.body.rank;
     const players = request.body.players;
 
-    const playerData = fastify.ratingsDb.historyDatabase[player];
+    const playerData = ratingsFor(request, fastify).historyDatabase[player];
 
     const singleGamesRatings = Object.keys(playerData)
         .sort()

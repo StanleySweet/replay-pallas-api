@@ -10,10 +10,11 @@ const VERSION_KEY = "cacheversion";
 
 // One table per cache (migrations/013). Names are constants, never user input, so they
 // are interpolated into the SQL.
-const TABLES: { [tag: string]: { table: string, key: string, legacyFile: string } } = {
+// scoped tables hold one set per scope: 0 is every replay, a number above 0 is that 0 A.D. release.
+const TABLES: { [tag: string]: { table: string, key: string, legacyFile: string, scoped?: boolean } } = {
     "replayDatabase": { "table": "local_replays", "key": "match_id", "legacyFile": "dist/cache/replayDatabase.json" },
-    "ratingsDatabase": { "table": "local_ratings", "key": "player", "legacyFile": "dist/cache/ratingsDatabase.json" },
-    "historyDatabase": { "table": "local_history", "key": "player", "legacyFile": "dist/cache/historyDatabase.json" },
+    "ratingsDatabase": { "table": "local_ratings", "key": "player", "legacyFile": "dist/cache/ratingsDatabase.json", "scoped": true },
+    "historyDatabase": { "table": "local_history", "key": "player", "legacyFile": "dist/cache/historyDatabase.json", "scoped": true },
     "aliasesDatabase": { "table": "local_aliases", "key": "alias_group", "legacyFile": "dist/cache/aliasesDatabase.json" },
 };
 
@@ -51,15 +52,16 @@ class LocalRatingsCache {
             Engine.ConfigDB_CreateValue(VERSION_SECTION, VERSION_KEY, `${this.version}`);
     }
 
-    load(tag: string): Rows {
+    load(tag: string, scope = 0): Rows {
         const spec = TABLES[tag];
         if (!spec || Engine.database === null)
             return {};
 
-        this.importLegacyFile(Engine.database, tag);
+        if (scope === 0)
+            this.importLegacyFile(Engine.database, tag);
 
         // rowid order keeps the insertion order the JSON object used to have.
-        const rows = Engine.database.prepare(`Select ${spec.key} as k, data From ${spec.table} Order By rowid;`).all() as { k: string, data: string }[];
+        const rows = Engine.database.prepare(`Select ${spec.key} as k, data From ${spec.table} ${spec.scoped ? "Where scope = @scope" : ""} Order By rowid;`).all(spec.scoped ? { "scope": scope } : {}) as { k: string, data: string }[];
         const result: Rows = {};
         for (const row of rows)
             result[row.k] = JSON.parse(row.data);
@@ -67,38 +69,42 @@ class LocalRatingsCache {
     }
 
     /** Replace the whole cache. */
-    save(tag: string, json: unknown): void {
+    save(tag: string, json: unknown, scope = 0): void {
         const spec = TABLES[tag];
         if (!spec || Engine.database === null)
             return;
 
         const db = Engine.database;
         db.transaction(() => {
-            db.prepare(`Delete From ${spec.table};`).run();
-            this.upsertRows(db, tag, json as Rows);
+            if (spec.scoped)
+                db.prepare(`Delete From ${spec.table} Where scope = @scope;`).run({ "scope": scope });
+            else
+                db.prepare(`Delete From ${spec.table};`).run();
+            this.upsertRows(db, tag, json as Rows, scope);
         })();
 
         // The table now holds this cache; a leftover file would only ever be stale.
-        if (Engine.FileExists(spec.legacyFile))
+        if (scope === 0 && Engine.FileExists(spec.legacyFile))
             renameSync(spec.legacyFile, `${spec.legacyFile}.migrated`);
     }
 
     /** Add or overwrite some entries, leaving the others as they are. */
-    merge(tag: string, json: unknown): void {
+    merge(tag: string, json: unknown, scope = 0): void {
         const spec = TABLES[tag];
         if (!spec || Engine.database === null)
             return;
 
         const db = Engine.database;
-        db.transaction(() => this.upsertRows(db, tag, json as Rows))();
+        db.transaction(() => this.upsertRows(db, tag, json as Rows, scope))();
     }
 
-    private upsertRows(db: Database, tag: string, rows: Rows): void {
+    private upsertRows(db: Database, tag: string, rows: Rows, scope = 0): void {
         const spec = TABLES[tag];
-        const statement = db.prepare(
-            `Insert Into ${spec.table} (${spec.key}, data) Values (@k, @data) On Conflict(${spec.key}) Do Update Set data = excluded.data;`);
+        const statement = spec.scoped
+            ? db.prepare(`Insert Into ${spec.table} (scope, ${spec.key}, data) Values (@scope, @k, @data) On Conflict(scope, ${spec.key}) Do Update Set data = excluded.data;`)
+            : db.prepare(`Insert Into ${spec.table} (${spec.key}, data) Values (@k, @data) On Conflict(${spec.key}) Do Update Set data = excluded.data;`);
         for (const [k, value] of Object.entries(rows))
-            statement.run({ "k": k, "data": JSON.stringify(value) });
+            statement.run(spec.scoped ? { "scope": scope, "k": k, "data": JSON.stringify(value) } : { "k": k, "data": JSON.stringify(value) });
     }
 
     /**
@@ -109,7 +115,7 @@ class LocalRatingsCache {
      */
     private importLegacyFile(db: Database, tag: string): void {
         const spec = TABLES[tag];
-        if (!Engine.FileExists(spec.legacyFile) || db.prepare(`Select 1 From ${spec.table} Limit 1;`).get())
+        if (!Engine.FileExists(spec.legacyFile) || db.prepare(`Select 1 From ${spec.table} ${spec.scoped ? "Where scope = 0" : ""} Limit 1;`).get())
             return;
 
         let rows = Engine.ReadJSONFile(spec.legacyFile) as Rows;
