@@ -13,16 +13,16 @@ import zodToJsonSchema from "zod-to-json-schema";
 import { ReplayMetaData } from "../types/ReplayMetaData";
 import { extract_commands_data, extract_commands_stats } from "../replays/commandsParser";
 import { update_LocalRatings } from "../local-ratings/utilities/functions_utility";
-import { isBrotliBlob, packBlob, unpackBlob } from "../replays/blobCodec";
-import { gameRelease } from "../replays/gameRelease";
+import { unpackBlob } from "../replays/blobCodec";
+import { getRanks } from "../replays/ranking";
 import { releaseParam } from "../replays/releaseParam";
 import EUserRole from "../enumerations/EUserRole";
 import { z } from "zod";
+import path from "path";
 import { MetadataSettings } from "../types/MetadataSettings";
-import { LobbyRankingHistoryEntries, LobbyRankingHistoryEntriesSchema, LobbyRankingHistoryEntry } from "../types/LobbyRankingHistoryEntry";
+import { LobbyRankingHistoryEntriesSchema } from "../types/LobbyRankingHistoryEntry";
 import { ReplayListItem, ReplayListItems, ReplayListItemsSchema } from "../types/ReplayListItem";
 import { LocalRatingsReplay } from "../local-ratings/Replay";
-import { logger } from '../logger';
 import { replaysUploadedTotal } from "../prometheus";
 import { toReplayListItem } from "./helpers/replayListItem";
 
@@ -86,149 +86,25 @@ function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: F
     get_list_items_from_local_ratings(filterByRelease(request, fastify, matchIds), reply, fastify);
 }
 
-const BATCH_SIZE = 50;
-
+// Starts the rebuild of the replay metadata in a worker thread and answers at once: the API stays up
+// while it runs, and GET /replays/rebuild-status says how far it is.
 function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(401);
         reply.send();
         return;
     }
-    let offset = 0;
-    let hasMoreData = true;
 
-    const count = fastify.replays.count();
+    const started = fastify.rebuildJob.start(path.resolve(fastify.database.name), () => {
+        fastify.replayDb.rebuild();
+        fastify.ratingsDb.rebuild();
+        fastify.releases.rebuild();
+        fastify.glicko2Manager.rebuild();
+    });
 
-    fastify.replays.clearLobbyLinks();
-    fastify.replays.clearRankingHistory();
-
-    while (hasMoreData) {
-
-        const replays: Replays = fastify.replays.page(BATCH_SIZE, offset);
-
-        // Check if there's no more data
-        if (replays.length === 0) {
-            hasMoreData = false;
-            break;
-        }
-
-        logger.info(`Rebuilding replays metadata. Treating replay ${offset} to ${offset + replays.length} of ${count} replays.`);
-
-        // Rows whose files are still stored the old way get rewritten as brotli below.
-        const repackFiledata = new Set<string>();
-        for (const replay of replays) {
-            // One unreadable row must not abort the rebuild half way: the link tables were already
-            // cleared above, so they would stay incomplete. Log it and keep the row as it is.
-            try {
-                if (Buffer.isBuffer(replay.metadata))
-                    replay.metadata = JSON.parse(unpackBlob(replay.metadata));
-                if (Buffer.isBuffer(replay.filedata)) {
-                    if (!isBrotliBlob(replay.filedata))
-                        repackFiledata.add(replay.match_id);
-                    replay.filedata = unpackBlob(replay.filedata);
-                }
-
-                // filedata is the JSON map of the uploaded files, the parser wants the commands.txt text.
-                const commands = JSON.parse(replay.filedata)["commands.txt"];
-                if (typeof commands !== "string")
-                    continue;
-
-                const commandsData = extract_commands_data(commands);
-                replay.metadata = Object.assign(replay.metadata, commandsData);
-            }
-            catch (error) {
-                logger.error({ err: error, matchId: replay.match_id }, "Rebuilding replays metadata: skipped an unreadable replay");
-                repackFiledata.delete(replay.match_id);
-            }
-        }
-
-        const mpNames = replays.map(replay => {
-            const names: string[] = [];
-            if (replay.metadata.settings && replay.metadata.settings.PlayerData) {
-                // AI players are in PlayerData but not in the lobby tables: upload leaves them out, and so does this.
-                for (const nameWithoutRating of replay.metadata.settings.PlayerData.filter(a => a && !a.AI).map(a => a.NameWithoutRating))
-                    if (nameWithoutRating)
-                        names.push(nameWithoutRating);
-            }
-
-            return {
-                "match_id": replay.metadata.matchID,
-                "player_names": names
-            };
-        });
-
-        const names = new Set<{ name: string, matchId: string }>();
-        for (const nameArray of mpNames) {
-            if (!nameArray.player_names || !nameArray.player_names.length || !nameArray.match_id)
-                continue;
-
-            for (const name of nameArray.player_names) {
-                names.add({
-                    "matchId": nameArray.match_id,
-                    "name": name
-                });
-            }
-        }
-
-        const userMap = new Map<string, number>();
-        for (const name of names) {
-            userMap.set(name.name, fastify.players.findOrCreateId(name.name));
-        }
-
-        for (const replay of replays) {
-            const metadataSettings: MetadataSettings = replay.metadata.settings as MetadataSettings;
-            if (!metadataSettings || !metadataSettings.PlayerData)
-                continue;
-
-            for (const player of metadataSettings.PlayerData) {
-                if (!player)
-                    continue;
-
-                player.LobbyUserId = userMap.get(player.NameWithoutRating || "") ?? 0;
-                if (replay.metadata.playerStates?.length) {
-
-                    const index = metadataSettings.PlayerData.indexOf(player) + 1;
-                    if (index > replay.metadata.playerStates.length - 1 || !replay.metadata.playerStates[index])
-                        continue;
-
-                    player.State = replay.metadata.playerStates[index].state;
-                }
-            }
-        }
-
-        for (const replay of replays) {
-            if (replay.metadata.matchID && replay.metadata.settings?.PlayerData && !replay.metadata.settings?.PlayerData.some(a => !a)) {
-                const currentDate = new Date();
-                const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
-                fastify.replays.updateMetadata(replay.metadata.matchID, packBlob(JSON.stringify(replay.metadata)), formattedDate);
-                fastify.replays.setGameRelease(replay.metadata.matchID, gameRelease(replay.metadata) ?? 0);
-            }
-        }
-
-        for (const replay of replays) {
-            if (repackFiledata.has(replay.match_id))
-                fastify.replays.updateFiledata(replay.match_id, packBlob(replay.filedata as string));
-        }
-
-        for (const name of names) {
-            const existingUser_id = userMap.get(name.name);
-            fastify.replays.linkLobbyPlayer(name.matchId, existingUser_id);
-        }
-
-        const ranks = get_ranks(replays);
-        fastify.replays.addRankingHistory(ranks);
-
-        // Update offset for the next batch
-        offset += BATCH_SIZE;
-    }
-
-    fastify.replayDb.rebuild();
-    fastify.ratingsDb.rebuild();
-    fastify.releases.rebuild();
-    fastify.glicko2Manager.rebuild();
-
-    reply.code(200);
-    reply.send();
+    // 409 when one is already running: the caller can just follow that one.
+    reply.code(started ? 202 : 409);
+    reply.send(fastify.rebuildJob.status);
 }
 
 const rebuild_glicko_rank_history = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
@@ -243,44 +119,6 @@ const rebuild_glicko_rank_history = (request: FastifyRequest, reply: FastifyRepl
     reply.send();
 };
 
-function padNumber(number: number) {
-    return number.toString().padStart(2, '0');
-}
-
-const get_ranks = (replays: Replays): LobbyRankingHistoryEntries => {
-    const ranks: LobbyRankingHistoryEntries = [];
-    for (const element of replays) {
-        if (Buffer.isBuffer(element.metadata))
-            element.metadata = JSON.parse(unpackBlob(element.metadata as Buffer));
-        const playerData = element.metadata.settings?.PlayerData;
-        if (!playerData)
-            continue;
-
-        for (const player of playerData) {
-            if (!player || !player.Name)
-                continue;
-
-            if (!player.Name.includes('('))
-                continue;
-
-            const matches = player.Name.match(/^.*\(([0-9]*)\)$/);
-            if (!matches || matches.length !== 2)
-                continue;
-
-            const elo: number = +matches[1];
-            const currentDate = new Date((element.metadata.timestamp ?? 0) * 1000);
-            const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
-            ranks.push({
-                match_id: element.metadata.matchID,
-                elo: elo,
-                lobby_player_id: player.LobbyUserId,
-                date: formattedDate
-            } as LobbyRankingHistoryEntry);
-        }
-    }
-    return ranks;
-};
-
 const rebuild_lobby_rank_history = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
     if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
         reply.code(401);
@@ -290,7 +128,7 @@ const rebuild_lobby_rank_history = (request: FastifyRequest, reply: FastifyReply
 
     const replays: Replays = fastify.replays.metadataWithDates();
     fastify.replays.clearRankingHistory();
-    const ranks = get_ranks(replays);
+    const ranks = getRanks(replays);
     fastify.replays.addRankingHistory(ranks);
 
     reply.send(ranks);
@@ -454,7 +292,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             server.replays.linkLobbyPlayer(name.matchId, existingUser_id);
         }
 
-        const ranks = get_ranks(newReplays);
+        const ranks = getRanks(newReplays);
         server.replays.addRankingHistory(ranks);
 
         response.Success = response.AddedReplays.length !== 0;
@@ -747,15 +585,19 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         reply.send();
     });
 
+    const RebuildStatusSchema = z.object({
+        state: z.enum(["idle", "reading", "writing", "finishing", "done", "failed"]),
+        done: z.number(), total: z.number(), skipped: z.number(),
+        startedAt: z.string().nullable(), finishedAt: z.string().nullable(), error: z.string().nullable(),
+    });
+
+    // Starts the rebuild and answers at once; follow it with /rebuild-status.
     server.get('/rebuild-replay-metadata', {
         "schema": {
             "response": {
-                "200": zodToJsonSchema(ReplaysSchema),
-                "204": {
-                    type: 'null',
-                    description: 'No Content'
-                },
-                "403": {
+                "202": zodToJsonSchema(RebuildStatusSchema),
+                "409": zodToJsonSchema(RebuildStatusSchema),
+                "401": {
                     type: 'null',
                     description: 'Unauthorized'
                 },
@@ -763,6 +605,27 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             ...schemaCommon
         }
     }, (request: FastifyRequest, reply: FastifyReply) => rebuild_replays_metadata(request, reply, server));
+
+    server.get('/rebuild-status', {
+        "schema": {
+            "response": {
+                "200": zodToJsonSchema(RebuildStatusSchema),
+                "401": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                },
+            },
+            ...schemaCommon
+        }
+    }, (request: FastifyRequest, reply: FastifyReply) => {
+        if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
+            reply.code(401);
+            reply.send();
+            return;
+        }
+
+        reply.send(server.rebuildJob.status);
+    });
 
     server.get('/my-replays', {
         "schema": {

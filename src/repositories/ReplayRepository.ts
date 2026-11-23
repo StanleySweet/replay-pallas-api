@@ -29,6 +29,20 @@ class ReplayRepository {
         return (this.db.prepare('Select Count(*) as count From replays;').get() as { count: number }).count;
     }
 
+    allMatchIds(): string[] {
+        return (this.db.prepare('SELECT match_id FROM replays').all() as { match_id: string }[]).map(row => row.match_id);
+    }
+
+    // Whole rows for the given replays.
+    rowsByMatchIds(matchIds: string[]): Replays {
+        const rows: Replays = [];
+        for (let i = 0; i < matchIds.length; i += IN_CHUNK) {
+            const chunk = matchIds.slice(i, i + IN_CHUNK);
+            rows.push(...this.db.prepare(`SELECT * FROM replays WHERE match_id IN (${chunk.map(() => "?").join(', ')});`).all(...chunk) as Replays);
+        }
+        return rows;
+    }
+
     page(batchSize: number, offset: number): Replays {
         return this.db.prepare(`
         SELECT * FROM replays r

@@ -8,6 +8,7 @@ import { ReplayRepository } from "../repositories/ReplayRepository";
 import { PlayerRepository } from "../repositories/PlayerRepository";
 import { UserRepository } from "../repositories/UserRepository";
 import { LocalRatingsRepository } from "../repositories/LocalRatingsRepository";
+import { MetadataRebuildJob } from "../replays/RebuildJob";
 
 declare module 'fastify' {
     interface FastifyInstance {
@@ -16,6 +17,7 @@ declare module 'fastify' {
         players: PlayerRepository
         users: UserRepository
         localRatings: LocalRatingsRepository
+        rebuildJob: MetadataRebuildJob
     }
 }
 
