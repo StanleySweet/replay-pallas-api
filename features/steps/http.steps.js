@@ -78,7 +78,7 @@ When('the stored replays are erased', async function () { this.last = await this
 Then('the lobby players include one pseudonym', function () { assert.strictEqual(this.last.body.filter(p => /^Player~[0-9A-F]{8,}$/.test(p.nick)).length >= 1, true); });
 
 // ---- login and registration
-const post = (world, url, body) => world.fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const post = (world, url, body, from) => world.fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...(from ? { 'x-forwarded-for': from } : {}) }, body: JSON.stringify(body) });
 When('{string} logs in with the password {string}', async function (email, password) { this.last = await post(this, '/users/token', { email, password }); });
 When('{string} logs in with the password {string} and the old hash {string}', async function (email, password, legacy) { this.last = await post(this, '/users/token', { email, password, legacy }); });
 When('{string} registers as {string} with the password {string}', async function (email, nick, password) { this.last = await post(this, '/users/', { email, nick, password }); });
@@ -87,4 +87,11 @@ When('{string} logs in {int} times with a wrong password', async function (email
     for (let i = 0; i < times; i++)
         this.answers.push((await post(this, '/users/token', { email, password: 'wrong' })).status);
 });
+// The same, from a client behind the proxy: its address is the one the proxy puts in X-Forwarded-For.
+When('a visitor at {string} logs in {int} times with a wrong password', async function (from, times) {
+    this.answers = [];
+    for (let i = 0; i < times; i++)
+        this.answers.push((await post(this, '/users/token', { email: 'carl@example.org', password: 'wrong' }, from)).status);
+});
+When('a visitor at {string} logs in with a wrong password', async function (from) { this.last = await post(this, '/users/token', { email: 'carl@example.org', password: 'wrong' }, from); });
 Then('one of the answers is {int}', function (status) { assert.ok(this.answers.includes(status), this.answers.join(',')); });

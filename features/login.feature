@@ -31,3 +31,9 @@ Feature: Logging in and registering
   Scenario: Too many attempts are refused
     When "carl@example.org" logs in 12 times with a wrong password
     Then one of the answers is 429
+
+  Scenario: The limit is per visitor, not for everybody behind the proxy
+    When a visitor at "203.0.113.7" logs in 12 times with a wrong password
+    Then one of the answers is 429
+    When a visitor at "203.0.113.8" logs in with a wrong password
+    Then the answer is 204

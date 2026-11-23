@@ -37,7 +37,10 @@ import { httpRequestDuration, httpRequestsTotal, register } from './prometheus';
 import { checkLogin } from "./users/passwordHash";
 import EUserRole from "./enumerations/EUserRole";
 
-const server = fastify({ logger: true });
+// Behind Apache every request comes from the proxy's address, so the rate limits would count all users
+// as one. Trust the one proxy in front (it appends the client address to X-Forwarded-For). The API port
+// is bound to loopback on the server, so nothing else can send that header.
+const server = fastify({ logger: true, trustProxy: +(process.env.TRUST_PROXY_HOPS ?? 1) });
 server.register(cors, {
     origin: '*', // Allowing requests from any origin
     allowedHeaders: '*',
