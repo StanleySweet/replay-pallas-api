@@ -74,8 +74,8 @@ check('users: create, taken nick ignores case, oldest account wins', () => {
     users.create('Sana', 'h2', 'b@x', 3);
     const oldest = users.findOldestByNick('Sana');
     assert.strictEqual(oldest.role, 1);
-    assert.strictEqual(users.findByCredentials('b@x', 'h2')[0].role, 3);
-    assert.strictEqual(users.findByCredentials('b@x', 'wrong').length, 0);
+    assert.strictEqual(users.accountByEmail('b@x').role, 3);
+    assert.strictEqual(users.accountByEmail('nobody@x'), undefined);
 });
 
 check('users: uploader link, ownership and delete with links', () => {

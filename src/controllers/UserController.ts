@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
+import { checkLogin, hashPassword } from "../users/passwordHash";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { AddUserRequest, AddUserSchema, DeleteUserByIdRequest, EloGraph, GetUserByIdRequest, GlickoElo, LatestUser, LatestUsersSchema, LoginUserRequest, SetPermissionsRequest, User, UserDetail, UserDetailSchema, UserSchema, UsersSchema } from "../types/User";
@@ -302,12 +303,16 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
 const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     try {
-        const users: User[] = fastify.users.findByCredentials(request.body.email, request.body.password);
-        if (!users || !users.length) {
+        const account = fastify.users.accountByEmail(request.body.email);
+        const verdict = account ? await checkLogin(account, request.body.password, request.body.legacy) : "no";
+        if (!account || verdict === "no") {
             reply.code(204);
             reply.send();
             return;
         }
+        if (verdict === "upgrade")
+            fastify.users.setPasswordHash(account.id, await hashPassword(request.body.password));
+        const users: User[] = [{ id: account.id, nick: account.nick, role: account.role }];
 
         const payload: PallasTokenPayload = {
             'role': users[0].role,
@@ -425,7 +430,7 @@ const delete_user = (request: DeleteUserByIdRequest, reply: FastifyReply, fastif
     }
 };
 
-const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+const create_user = async (request: AddUserRequest, reply: FastifyReply, fastify: FastifyInstance): Promise<void> => {
     try {
         // POST /users is unauthenticated, so without this anyone could register a second
         // account under a nick that is already taken (including a different casing of it) and
@@ -445,7 +450,7 @@ const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: Fast
             return;
         }
 
-        fastify.users.create(request.body.nick, request.body.password, request.body.email, EUserRole.READER);
+        fastify.users.create(request.body.nick, "", request.body.email, EUserRole.READER, await hashPassword(request.body.password));
         reply.code(201);
     }
     catch (err) {
@@ -457,6 +462,9 @@ const create_user = (request: AddUserRequest, reply: FastifyReply, fastify: Fast
     }
 };
 
+// Login and registration are open to everyone, so they get a much stricter limit than the rest of the API.
+const authRateLimit = { max: +(process.env.AUTH_RATE_MAX ?? 10), timeWindow: '15 minutes' };
+
 const UserController: FastifyPluginCallback = (fastify, _, done) => {
 
     const schemaCommon = { // For swagger categorization
@@ -464,6 +472,7 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
     };
 
     fastify.post("/", {
+        config: { rateLimit: authRateLimit },
         schema: {
             body: zodToJsonSchema(AddUserSchema),
             response: {
@@ -519,8 +528,9 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
 
 
     fastify.post("/token", {
+        config: { rateLimit: authRateLimit },
         schema: {
-            body: zodToJsonSchema(z.object({ email: z.string(), password: z.string() })),
+            body: zodToJsonSchema(z.object({ email: z.string(), password: z.string(), legacy: z.string().optional() })),
             response: {
                 200: zodToJsonSchema(PallasUserTokenSchema),
                 204: {

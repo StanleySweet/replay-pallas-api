@@ -48,6 +48,8 @@ const startSeededServer = async (port = 18099) => {
     const replays = new ReplayRepository(db), players = new PlayerRepository(db), users = new UserRepository(db);
     users.create('admin', 'hash', 'admin@example.org', 3);
     users.create('Alice', 'hash', 'alice@example.org', 1);
+    // Carl has not logged in since the server started hashing passwords: he still holds the old browser-side hash.
+    users.create('Carl', 'old-browser-hash', 'carl@example.org', 1);
     const alice = players.findOrCreateId('Alice'), bob = players.findOrCreateId('Bob');
 
     // Three 1v1 games on two releases. The same objects feed the replay cache the server loads.

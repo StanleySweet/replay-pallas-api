@@ -34,6 +34,7 @@ import fastifySchedulePlugin from "@fastify/schedule";
 import { HealthController } from "./controllers/HealthController";
 import { logger } from './logger';
 import { httpRequestDuration, httpRequestsTotal, register } from './prometheus';
+import { checkLogin } from "./users/passwordHash";
 import EUserRole from "./enumerations/EUserRole";
 
 const server = fastify({ logger: true });
@@ -190,7 +191,8 @@ server.get('/metrics', async (request, reply) => {
         }
 
         // Check credentials against database
-        const user = server.users.findMetricsAccount(username, password);
+        const account = server.users.accountByNick(username);
+        const user = account && await checkLogin(account, password, undefined) === "ok" ? account : undefined;
 
         if (!user) {
             reply.code(401);

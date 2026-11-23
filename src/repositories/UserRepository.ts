@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
+import { Account } from "../users/passwordHash";
 import { Database, RunResult } from "better-sqlite3";
 import { LatestUser, User, UserDetail } from "../types/User";
 import { PlayerStatistics } from "../types/PlayerStatistics";
@@ -38,13 +39,19 @@ class UserRepository {
         return this.db.prepare('SELECT id, nick, role, creation_date FROM users WHERE id=@id LIMIT 1').get({ "id": id }) as UserDetail | undefined;
     }
 
-    findByCredentials(email: string, password: string): User[] {
-        return this.db.prepare("SELECT id, nick, role FROM users WHERE email = @email and password = @password LIMIT 1").all({ "email": email, "password": password }) as User[];
+    // The account behind an email hash or a nick, with what is needed to check its password.
+    accountByEmail(email: string): Account | undefined {
+        return this.db.prepare("SELECT id, nick, role, password, password_hash FROM users WHERE email = @email LIMIT 1").get({ email }) as Account | undefined;
     }
 
     // The /metrics Basic auth account.
-    findMetricsAccount(nick: string, password: string): { id: number, role: number } | undefined {
-        return this.db.prepare("SELECT id, role FROM users WHERE nick = @nick AND password = @password LIMIT 1").get({ nick: nick, password: password }) as { id: number, role: number } | undefined;
+    accountByNick(nick: string): Account | undefined {
+        return this.db.prepare("SELECT id, nick, role, password, password_hash FROM users WHERE nick = @nick ORDER BY id LIMIT 1").get({ nick }) as Account | undefined;
+    }
+
+    // Moves an account to the server-side hash, and drops the old one that could log in by itself.
+    setPasswordHash(id: number, passwordHash: string): void {
+        this.db.prepare("UPDATE users SET password_hash = @passwordHash, password = '' WHERE id = @id").run({ id, passwordHash });
     }
 
     latest(): LatestUser[] {
@@ -66,10 +73,13 @@ class UserRepository {
         return !!this.db.prepare("SELECT id FROM users WHERE nick = @nick COLLATE NOCASE LIMIT 1").get({ "nick": nick });
     }
 
-    create(nick: string, password: string, email: string, role: EUserRole): void {
-        this.db.prepare(`INSERT INTO users (nick, password, email, role) VALUES(@nick, @password, @email, @role)`).run({
+    // A new account holds only the server-side hash: password stays empty. The seeded tests and the
+    // checks pass a legacy value as the first argument pair, so passwordHash is optional.
+    create(nick: string, password: string, email: string, role: EUserRole, passwordHash: string | null = null): void {
+        this.db.prepare(`INSERT INTO users (nick, password, password_hash, email, role) VALUES(@nick, @password, @passwordHash, @email, @role)`).run({
             "nick": nick,
             "password": password,
+            "passwordHash": passwordHash,
             "email": email,
             "role": role,
         });

@@ -78,7 +78,9 @@ type AddUserRequest = FastifyRequest<{ Body: AddUser }>;
 type LoginUserRequest = FastifyRequest<{
     Body: {
         email: string,
-        password: string
+        password: string,
+        // The old browser-side hash, sent beside the plain password until the account has moved.
+        legacy?: string
     }
 }>;
 
