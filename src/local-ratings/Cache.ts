@@ -1,5 +1,5 @@
 import { renameSync } from 'fs';
-import { Database } from 'better-sqlite3';
+import { LocalCacheRepository, Rows } from '../repositories/LocalCacheRepository';
 import { EngineInstance as Engine } from '../types/Engine';
 
 // Where the cache version is recorded. local_ratings_configuration already exists
@@ -17,8 +17,6 @@ const TABLES: { [tag: string]: { table: string, key: string, legacyFile: string,
     "historyDatabase": { "table": "local_history", "key": "player", "legacyFile": "dist/cache/historyDatabase.json", "scoped": true },
     "aliasesDatabase": { "table": "local_aliases", "key": "alias_group", "legacyFile": "dist/cache/aliasesDatabase.json" },
 };
-
-type Rows = { [key: string]: unknown };
 
 /**
  * This class is responsible for interactions with the local-ratings caches, like loading or saving.
@@ -52,36 +50,30 @@ class LocalRatingsCache {
             Engine.ConfigDB_CreateValue(VERSION_SECTION, VERSION_KEY, `${this.version}`);
     }
 
+    private store(): LocalCacheRepository | null {
+        return Engine.database === null ? null : new LocalCacheRepository(Engine.database);
+    }
+
     load(tag: string, scope = 0): Rows {
         const spec = TABLES[tag];
-        if (!spec || Engine.database === null)
+        const store = this.store();
+        if (!spec || !store)
             return {};
 
         if (scope === 0)
-            this.importLegacyFile(Engine.database, tag);
+            this.importLegacyFile(store, tag);
 
-        // rowid order keeps the insertion order the JSON object used to have.
-        const rows = Engine.database.prepare(`Select ${spec.key} as k, data From ${spec.table} ${spec.scoped ? "Where scope = @scope" : ""} Order By rowid;`).all(spec.scoped ? { "scope": scope } : {}) as { k: string, data: string }[];
-        const result: Rows = {};
-        for (const row of rows)
-            result[row.k] = JSON.parse(row.data);
-        return result;
+        return store.load(spec, scope);
     }
 
     /** Replace the whole cache. */
     save(tag: string, json: unknown, scope = 0): void {
         const spec = TABLES[tag];
-        if (!spec || Engine.database === null)
+        const store = this.store();
+        if (!spec || !store)
             return;
 
-        const db = Engine.database;
-        db.transaction(() => {
-            if (spec.scoped)
-                db.prepare(`Delete From ${spec.table} Where scope = @scope;`).run({ "scope": scope });
-            else
-                db.prepare(`Delete From ${spec.table};`).run();
-            this.upsertRows(db, tag, json as Rows, scope);
-        })();
+        store.replace(spec, json as Rows, scope);
 
         // The table now holds this cache; a leftover file would only ever be stale.
         if (scope === 0 && Engine.FileExists(spec.legacyFile))
@@ -91,20 +83,11 @@ class LocalRatingsCache {
     /** Add or overwrite some entries, leaving the others as they are. */
     merge(tag: string, json: unknown, scope = 0): void {
         const spec = TABLES[tag];
-        if (!spec || Engine.database === null)
+        const store = this.store();
+        if (!spec || !store)
             return;
 
-        const db = Engine.database;
-        db.transaction(() => this.upsertRows(db, tag, json as Rows, scope))();
-    }
-
-    private upsertRows(db: Database, tag: string, rows: Rows, scope = 0): void {
-        const spec = TABLES[tag];
-        const statement = spec.scoped
-            ? db.prepare(`Insert Into ${spec.table} (scope, ${spec.key}, data) Values (@scope, @k, @data) On Conflict(scope, ${spec.key}) Do Update Set data = excluded.data;`)
-            : db.prepare(`Insert Into ${spec.table} (${spec.key}, data) Values (@k, @data) On Conflict(${spec.key}) Do Update Set data = excluded.data;`);
-        for (const [k, value] of Object.entries(rows))
-            statement.run(spec.scoped ? { "scope": scope, "k": k, "data": JSON.stringify(value) } : { "k": k, "data": JSON.stringify(value) });
+        store.merge(spec, json as Rows, scope);
     }
 
     /**
@@ -113,16 +96,14 @@ class LocalRatingsCache {
      * the file so it cannot be imported twice). Replay entries whose replay no longer exists are
      * skipped, as the foreign key would refuse them anyway.
      */
-    private importLegacyFile(db: Database, tag: string): void {
+    private importLegacyFile(store: LocalCacheRepository, tag: string): void {
         const spec = TABLES[tag];
-        if (!Engine.FileExists(spec.legacyFile) || db.prepare(`Select 1 From ${spec.table} ${spec.scoped ? "Where scope = 0" : ""} Limit 1;`).get())
+        if (!Engine.FileExists(spec.legacyFile) || !store.isEmpty(spec))
             return;
 
         let rows = Engine.ReadJSONFile(spec.legacyFile) as Rows;
-        if (tag === "replayDatabase") {
-            const known = db.prepare("Select 1 From replays Where match_id = ?;");
-            rows = Object.fromEntries(Object.entries(rows).filter(([matchId]) => known.get(matchId)));
-        }
+        if (tag === "replayDatabase")
+            rows = Object.fromEntries(Object.entries(rows).filter(([matchId]) => store.replayExists(matchId)));
 
         this.save(tag, rows);
     }

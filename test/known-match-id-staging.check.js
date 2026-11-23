@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Proves Engine.GetNewReplays is safe when a known match_id contains SQL punctuation.
+// Proves Engine.GetNewReplays (ReplayRepository.newMetadataPage) is safe when a known match_id contains SQL punctuation.
 //
 // Background: GetNewReplays used to splice the known ids into the statement as a literal
 // NOT IN list. match_id comes from the matchID in uploaded replay metadata and nothing
@@ -17,6 +17,7 @@ const D = require('better-sqlite3');
 const snappy = require('snappy');
 
 const engineSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'types', 'Engine.ts'), 'utf8');
+const repositorySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'repositories', 'ReplayRepository.ts'), 'utf8');
 
 let passed = 0;
 const check = (name, fn) => {
@@ -31,7 +32,7 @@ const check = (name, fn) => {
 };
 
 // ------------------------------------------------------------------ source shape
-const newReplays = engineSource.slice(engineSource.indexOf('GetNewReplays('), engineSource.indexOf('GetReplays('));
+const newReplays = repositorySource.slice(repositorySource.indexOf('newMetadataPage('), repositorySource.indexOf('dataSignature('));
 
 check('known ids are no longer interpolated into SQL', () => {
     assert.ok(!/NOT IN \(\$\{/.test(newReplays),
@@ -49,9 +50,9 @@ check('the staging table is created before the statements that touch it', () => 
     assert.ok(exec < prep, 'the temp table is prepared before it is created');
 });
 
-check('SetDataBase drops the cached statements', () => {
+check('SetDataBase gives the new connection its own repository, so no statement survives a swap', () => {
     // The statements are bound to one connection's temp schema.
-    assert.ok(/SetDataBase[\s\S]{0,200}stagingStatements = null/.test(engineSource),
+    assert.ok(/SetDataBase[\s\S]{0,200}new ReplayRepository\(database\)/.test(engineSource),
         'staging statements survive a database swap');
 });
 

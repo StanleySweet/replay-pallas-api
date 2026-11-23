@@ -59,19 +59,19 @@ check('matchIdsForRelease keeps one release only', () => {
 });
 
 
-check('the release list counts replays per release, newest first, and leaves out the unknown one', () => {
-    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 1 }, { release: 26, replays: 1 }]);
+check('the release list counts replays per release, newest first, with the unknown one (0) last', () => {
+    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 1 }, { release: 26, replays: 1 }, { release: 0, replays: 1 }]);
 });
 
 check('the cached release list follows inserts, deletes and a release being set', () => {
     const before = replays.releases();
     assert.strictEqual(replays.releases(), before, 'a second call is served from the cache');
     replays.insert(row('D', { mods: [{ name: '0ad', version: '0.28.0' }] }, 28));
-    assert.deepStrictEqual(replays.releases().map(r => r.release), [28, 27, 26]);
+    assert.deepStrictEqual(replays.releases().map(r => r.release), [28, 27, 26, 0]);
     replays.setGameRelease('D', 27);
-    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 2 }, { release: 26, replays: 1 }]);
+    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 2 }, { release: 26, replays: 1 }, { release: 0, replays: 1 }]);
     replays.delete('D');
-    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 1 }, { release: 26, replays: 1 }]);
+    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 1 }, { release: 26, replays: 1 }, { release: 0, replays: 1 }]);
 });
 
 check('the metadata lists can be limited to one release', () => {

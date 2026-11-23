@@ -3,7 +3,7 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
-import { Database } from "better-sqlite3";
+import { Database, Statement } from "better-sqlite3";
 import { Replay, ReplayDetails, Replays } from "../types/Replay";
 import { LobbyRankingHistoryEntry } from "../types/LobbyRankingHistoryEntry";
 
@@ -13,6 +13,8 @@ const IN_CHUNK = 500;
 // Everything that touches the replays table and the tables that cascade from it. Rows come back
 // with their blobs still packed: unpacking them is src/replays/blobCodec.ts's job, so a query that
 // does not need a blob never pays for it.
+type RawMetadataRow = { attribs: Buffer | string, directory: string };
+
 class ReplayRepository {
     // The releases that have replays, for the selector, newest first. 0 is the replays whose version is
     // unknown, so it comes last. Kept in memory and dropped whenever a replay
@@ -20,6 +22,61 @@ class ReplayRepository {
     private releasesCache: { release: number, replays: number }[] | null = null;
 
     constructor(private readonly db: Database) { }
+
+    // The raw metadata of every replay, one page at a time, for the local ratings replay cache.
+    metadataPage(limit: number, offset: number): RawMetadataRow[] {
+        return this.db.prepare("SELECT metadata as attribs, match_id as directory FROM replays LIMIT @limit OFFSET @offset;").all({ limit, offset }) as RawMetadataRow[];
+    }
+
+    // The raw metadata of one replay.
+    metadataOf(matchId: string): Buffer | string | undefined {
+        return (this.db.prepare("Select metadata as attribs From replays where match_id = @match_id LIMIT 1;").get({ "match_id": matchId }) as { attribs: Buffer | string } | undefined)?.attribs;
+    }
+
+    // Lazily built by newMetadataPage. Bound to this connection's temp schema.
+    private staging: { clear: Statement, insert: Statement, select: Statement } | null = null;
+
+    // One page of the replays whose id is not in knownIds.
+    newMetadataPage(knownIds: string[], limit: number, offset: number): RawMetadataRow[] {
+        // The known ids used to be glued into the SQL as a literal NOT IN list. match_id comes
+        // from uploaded replay metadata, so one upload whose matchID contains a quote produced
+        // invalid SQL here and threw. Because update() runs on the boot path, that single upload
+        // broke every subsequent start. A temp table avoids both the injection and the SQLite
+        // host-parameter ceiling.
+        //
+        // better-sqlite3 prepares eagerly and rejects a statement against a table that does not
+        // exist yet, so the staging table has to be created before the statements touching it
+        // are prepared. They are then cached: update() calls this once per batch, and
+        // re-preparing all four on every call is pure overhead.
+        if (!this.staging) {
+            this.db.exec("CREATE TEMP TABLE IF NOT EXISTS known_match_ids (match_id TEXT PRIMARY KEY);");
+            this.staging = {
+                clear: this.db.prepare("DELETE FROM known_match_ids;"),
+                insert: this.db.prepare("INSERT OR IGNORE INTO known_match_ids (match_id) VALUES (?);"),
+                select: this.db.prepare(`
+                    SELECT metadata as attribs, match_id as directory
+                    FROM replays
+                    WHERE match_id NOT IN (SELECT match_id FROM known_match_ids)
+                    LIMIT @limit
+                    OFFSET @offset;
+                `)
+            };
+        }
+
+        const { clear, insert, select } = this.staging;
+        this.db.transaction((ids: string[]) => {
+            clear.run();
+            for (const id of ids)
+                insert.run(id);
+        })(knownIds);
+
+        const rows = select.all({ limit, offset }) as RawMetadataRow[];
+
+        // Left empty on purpose: the table is scratch space, and anything left behind would
+        // silently hide replays from the next call.
+        clear.run();
+        return rows;
+    }
 
     // Changes whenever a replay is added or removed (an upload changes max rowid, a delete the count): what
     // the derived data was last computed from, so an hour without either costs nothing.
@@ -187,3 +244,4 @@ class ReplayRepository {
 }
 
 export { ReplayRepository };
+export type { RawMetadataRow };
