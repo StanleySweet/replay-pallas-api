@@ -42,6 +42,7 @@ const { UserRepository } = dist('repositories/UserRepository.js');
 const { packBlob } = dist('replays/blobCodec.js');
 const replays = new ReplayRepository(db), players = new PlayerRepository(db), users = new UserRepository(db);
 users.create('admin', 'hash', 'admin@example.org', 3);
+users.create('Alice', 'hash', 'alice@example.org', 1);
 const alice = players.findOrCreateId('Alice'), bob = players.findOrCreateId('Bob');
 
 // Three 1v1 games on two releases. The same objects feed the replay cache the server loads.

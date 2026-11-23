@@ -3,6 +3,7 @@
  * SPDX-FileCopyrightText: © 2024 Stanislas Daniel Claude Dolcini
  */
 
+import { rebuildDerivedData } from "../replays/derivedData";
 import AdmZip, { IZipEntry } from "adm-zip";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { UploadReplayZipResponse, UploadReplayZipResponseSchema } from "../types/UploadReplayZipResponse";
@@ -95,12 +96,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
         return;
     }
 
-    const started = fastify.rebuildJob.start(path.resolve(fastify.database.name), () => {
-        fastify.replayDb.rebuild();
-        fastify.ratingsDb.rebuild();
-        fastify.releases.rebuild();
-        fastify.glicko2Manager.rebuild();
-    });
+    const started = fastify.rebuildJob.start(path.resolve(fastify.database.name), async () => { await rebuildDerivedData(fastify); });
 
     // 409 when one is already running: the caller can just follow that one.
     reply.code(started ? 202 : 409);
@@ -372,6 +368,28 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         }
 
         reply.send(server.replays.releases());
+    });
+
+    // The Glicko leaderboard of one release, or of every replay without ?release=.
+    server.get('/glicko-leaderboard', {
+        schema: {
+            response: {
+                200: zodToJsonSchema(z.array(z.object({ lobby_player_id: z.number(), nick: z.string(), elo: z.number(), deviation: z.number(), match_count: z.number() }))),
+                "403": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        if ((request.claims?.role ?? 0) < EUserRole.READER) {
+            reply.code(403);
+            reply.send();
+            return;
+        }
+
+        reply.send(server.glicko2Manager.store.leaderboard(releaseParam(request)));
     });
 
     type GetMatchByIdRequest = FastifyRequest<{ Params: { matchId: string } }>;

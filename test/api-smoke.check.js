@@ -91,6 +91,21 @@ const main = async () => {
             assert.ok("glickoElo" in profile, "player-profile does not report a glicko rating");
         });
 
+        await check("the account page lists the replays of its own player, per release", async () => {
+            // Alice is user 2 and lobby player 1: the page once looked the lobby id up as a user id.
+            const all = await (await get("/users/GetDetails/2", token)).json();
+            assert.strictEqual(all.replays.length, 3, "the account page does not list Alice's replays");
+            const release26 = await (await get("/users/GetDetails/2?release=26", token)).json();
+            assert.strictEqual(release26.replays.length, 2, "?release= does not narrow the account page");
+        });
+
+        await check("the glicko leaderboard ranks a release and every replay", async () => {
+            const board = await (await get("/replays/glicko-leaderboard?release=26", token)).json();
+            assert.deepStrictEqual(board.map(r => r.nick), ["Alice", "Bob"]);
+            const everything = await (await get("/replays/glicko-leaderboard", token)).json();
+            assert.strictEqual(everything.length, 2);
+        });
+
         await check("the distribution chart gets bins for a rated player", async () => {
             const users = await (await get("/local-ratings/users", token)).json();
             const rated = users.find(u => u.matches > 0);

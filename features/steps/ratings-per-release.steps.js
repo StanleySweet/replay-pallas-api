@@ -74,3 +74,17 @@ Then('Alice is rated above Bob on release {int} and below Bob on release {int}',
 });
 Then('the local ratings over every replay still hold only {string}', function (nick) { assert.deepStrictEqual(Object.keys(this.cache.load('ratingsDatabase')), [nick]); });
 Then('Alice still has {int} rated matches on release {int}', function (count, release) { assert.strictEqual(alice(this, release).matches, count); });
+
+// ---- glicko leaderboard
+const board = (world, release) => new (world.dist('instant-glicko-2/Glicko2Manager.js').Glicko2Manager)(world.db).store.leaderboard(release);
+Then('the glicko leaderboard of release {int} lists Alice before Bob, each with {int} games', function (release, games) {
+    const rows = board(this, release);
+    assert.deepStrictEqual(rows.map(r => r.nick), ['Alice', 'Bob']);
+    assert.deepStrictEqual(rows.map(r => r.match_count), [games, games]);
+});
+Then('the glicko leaderboard over every replay lists Alice and Bob, each with {int} games', function (games) {
+    const rows = board(this, null);
+    assert.deepStrictEqual(rows.map(r => r.nick).sort(), ['Alice', 'Bob']);
+    assert.deepStrictEqual(rows.map(r => r.match_count), [games, games]);
+});
+Then('the glicko leaderboard of release {int} is empty', function (release) { assert.deepStrictEqual(board(this, release), []); });

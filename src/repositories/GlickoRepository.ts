@@ -37,6 +37,18 @@ class GlickoRepository {
         return this.db.prepare('Select * From glicko2_rankings;').all() as T[];
     }
 
+    // Each player's latest rating in one set (null: rated over every replay), best first. The latest row
+    // of a player is the one with the highest match_count.
+    leaderboard(release: number | null): { lobby_player_id: number, nick: string, elo: number, deviation: number, match_count: number }[] {
+        return this.db.prepare(`
+        Select g.lobby_player_id, lp.nick, g.elo, g.deviation, g.match_count
+        From glicko2_rankings g
+        Inner Join lobby_players lp On lp.id = g.lobby_player_id
+        Where g.game_release Is @release
+          And g.match_count = (Select Max(g2.match_count) From glicko2_rankings g2 Where g2.lobby_player_id = g.lobby_player_id And g2.game_release Is @release)
+        Order By g.elo Desc, g.match_count Desc;`).all({ release }) as { lobby_player_id: number, nick: string, elo: number, deviation: number, match_count: number }[];
+    }
+
     clear(): void {
         this.db.prepare('Delete From glicko2_rankings;').run();
     }

@@ -59,3 +59,15 @@ Feature: Ratings per 0 A.D. release
     And every replay of release 27 is deleted
     And the local ratings are rebuilt per release
     Then there are local rating sets for release 26 only
+
+  Scenario: The glicko leaderboard of a release ranks its players
+    When the glicko ratings are rebuilt
+    Then the glicko leaderboard of release 26 lists Alice before Bob, each with 2 games
+
+  Scenario: The glicko leaderboard over every replay uses each player's latest rating
+    When the glicko ratings are rebuilt
+    Then the glicko leaderboard over every replay lists Alice and Bob, each with 3 games
+
+  Scenario: A release without replays has an empty leaderboard
+    When the glicko ratings are rebuilt
+    Then the glicko leaderboard of release 99 is empty
