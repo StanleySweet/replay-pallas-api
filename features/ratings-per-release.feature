@@ -71,3 +71,14 @@ Feature: Ratings per 0 A.D. release
   Scenario: A release without replays has an empty leaderboard
     When the glicko ratings are rebuilt
     Then the glicko leaderboard of release 99 is empty
+
+  Scenario: Players with too few rated games are left out of the leaderboard
+    When the glicko ratings are rebuilt
+    Then the glicko leaderboard of release 26 with at least 3 games is empty
+    And the glicko leaderboard over every replay with at least 3 games lists Alice and Bob
+
+  Scenario: The conservative leaderboard keeps an unsure player below the regulars
+    Given "Lucky" is rated 1800 with a deviation of 300 after 1 game
+    And "Regular" is rated 1600 with a deviation of 50 after 10 games
+    Then the leaderboard by rating lists Lucky before Regular
+    And the conservative leaderboard lists Regular before Lucky

@@ -37,16 +37,19 @@ class GlickoRepository {
         return this.db.prepare('Select * From glicko2_rankings;').all() as T[];
     }
 
-    // Each player's latest rating in one set (null: rated over every replay), best first. The latest row
+    // Each player's latest rating in one set (null: rated over every replay), best first, by rating or by
+    // the conservative rating (rating - 2 deviations), which keeps a player with one lucky game and a huge
+    // deviation below the regulars. Players with fewer than minGames rated games are left out. The latest row
     // of a player is the one with the highest match_count.
-    leaderboard(release: number | null): { lobby_player_id: number, nick: string, elo: number, deviation: number, match_count: number }[] {
+    leaderboard(release: number | null, minGames = 1, conservative = false): { lobby_player_id: number, nick: string, elo: number, deviation: number, match_count: number }[] {
         return this.db.prepare(`
         Select g.lobby_player_id, lp.nick, g.elo, g.deviation, g.match_count
         From glicko2_rankings g
         Inner Join lobby_players lp On lp.id = g.lobby_player_id
         Where g.game_release Is @release
           And g.match_count = (Select Max(g2.match_count) From glicko2_rankings g2 Where g2.lobby_player_id = g.lobby_player_id And g2.game_release Is @release)
-        Order By g.elo Desc, g.match_count Desc;`).all({ release }) as { lobby_player_id: number, nick: string, elo: number, deviation: number, match_count: number }[];
+          And g.match_count >= @minGames
+        Order By ${conservative ? 'g.elo - 2 * g.deviation' : 'g.elo'} Desc, g.match_count Desc;`).all({ release, minGames }) as { lobby_player_id: number, nick: string, elo: number, deviation: number, match_count: number }[];
     }
 
     clear(): void {

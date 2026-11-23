@@ -88,3 +88,12 @@ Then('the glicko leaderboard over every replay lists Alice and Bob, each with {i
     assert.deepStrictEqual(rows.map(r => r.match_count), [games, games]);
 });
 Then('the glicko leaderboard of release {int} is empty', function (release) { assert.deepStrictEqual(board(this, release), []); });
+Then('the glicko leaderboard of release {int} with at least {int} games is empty', function (release, games) { assert.deepStrictEqual(boardWith(this, release, games, false), []); });
+Then('the glicko leaderboard over every replay with at least {int} games lists Alice and Bob', function (games) { assert.deepStrictEqual(boardWith(this, null, games, false).map(r => r.nick).sort(), ['Alice', 'Bob']); });
+Given('{string} is rated {int} with a deviation of {int} after {int} game(s)', function (nick, elo, deviation, games) {
+    const id = this.players.findOrCreateId(nick);
+    this.db.prepare("INSERT INTO glicko2_rankings (elo, deviation, volatility, lobby_player_id, preview_deviation, match_count, date, game_release) VALUES (?, ?, 0.06, ?, ?, ?, '2026-01-01', 99)").run(elo, deviation, id, deviation, games);
+});
+const boardWith = (world, release, minGames, conservative) => new (world.dist('instant-glicko-2/Glicko2Manager.js').Glicko2Manager)(world.db).store.leaderboard(release, minGames, conservative);
+Then('the leaderboard by rating lists Lucky before Regular', function () { assert.deepStrictEqual(boardWith(this, 99, 1, false).map(r => r.nick), ['Lucky', 'Regular']); });
+Then('the conservative leaderboard lists Regular before Lucky', function () { assert.deepStrictEqual(boardWith(this, 99, 1, true).map(r => r.nick), ['Regular', 'Lucky']); });

@@ -7,6 +7,7 @@ import { Worker } from "worker_threads";
 import path from "path";
 import { logger } from "../logger";
 import { RebuildProgress } from "./rebuildMetadata";
+import { rebuildFailuresTotal, rebuildLastSuccess } from "../prometheus";
 
 type RebuildState = "idle" | "reading" | "writing" | "finishing" | "done" | "failed";
 
@@ -70,8 +71,12 @@ class MetadataRebuildJob {
     private finish(state: "done" | "failed", error: unknown): void {
         this.running = false;
         this.status = { ...this.status, state, finishedAt: new Date().toISOString(), error: error ? String(error) : null };
-        if (state === "failed")
+        if (state === "failed") {
+            rebuildFailuresTotal.labels("metadata").inc();
             logger.error({ err: error }, "The replay metadata rebuild failed");
+        }
+        else
+            rebuildLastSuccess.labels("metadata").setToCurrentTime();
     }
 }
 

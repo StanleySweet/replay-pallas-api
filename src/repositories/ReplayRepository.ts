@@ -14,14 +14,22 @@ const IN_CHUNK = 500;
 // with their blobs still packed: unpacking them is src/replays/blobCodec.ts's job, so a query that
 // does not need a blob never pays for it.
 class ReplayRepository {
-    // The releases that have replays, for the selector. Kept in memory and dropped whenever a replay
+    // The releases that have replays, for the selector, newest first. 0 is the replays whose version is
+    // unknown, so it comes last. Kept in memory and dropped whenever a replay
     // is added or removed or gets its release set, so it is never stale and costs one query otherwise.
     private releasesCache: { release: number, replays: number }[] | null = null;
 
     constructor(private readonly db: Database) { }
 
+    // Changes whenever a replay is added or removed (an upload changes max rowid, a delete the count): what
+    // the derived data was last computed from, so an hour without either costs nothing.
+    dataSignature(): string {
+        const { count, last } = this.db.prepare('SELECT COUNT(*) AS count, COALESCE(MAX(rowid), 0) AS last FROM replays').get() as { count: number, last: number };
+        return `${count}:${last}`;
+    }
+
     releases(): { release: number, replays: number }[] {
-        this.releasesCache ??= this.db.prepare('SELECT game_release AS release, COUNT(*) AS replays FROM replays WHERE game_release > 0 GROUP BY game_release ORDER BY game_release DESC').all() as { release: number, replays: number }[];
+        this.releasesCache ??= this.db.prepare('SELECT game_release AS release, COUNT(*) AS replays FROM replays WHERE game_release IS NOT NULL GROUP BY game_release ORDER BY game_release DESC').all() as { release: number, replays: number }[];
         return this.releasesCache;
     }
 

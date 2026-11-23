@@ -41,7 +41,7 @@ Feature: Replays belong to a 0 A.D. release
       | C  | 0       |
     And starting the server again fills nothing
 
-  Scenario: The selector offers the releases that have replays, newest first
+  Scenario: The selector offers the releases that have replays, newest first, and the unknown ones last
     Given these replays are stored:
       | id | release |
       | A  | 26      |
@@ -52,6 +52,7 @@ Feature: Replays belong to a 0 A.D. release
       | release | replays |
       | 28      | 1       |
       | 26      | 2       |
+      | 0       | 1       |
 
   Scenario: The offered releases follow uploads and deletions
     Given these replays are stored:

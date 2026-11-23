@@ -96,7 +96,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
         return;
     }
 
-    const started = fastify.rebuildJob.start(path.resolve(fastify.database.name), async () => { await rebuildDerivedData(fastify); });
+    const started = fastify.rebuildJob.start(path.resolve(fastify.database.name), async () => { await rebuildDerivedData(fastify, fastify.replays.dataSignature(), true); });
 
     // 409 when one is already running: the caller can just follow that one.
     reply.code(started ? 202 : 409);
@@ -370,7 +370,8 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         reply.send(server.replays.releases());
     });
 
-    // The Glicko leaderboard of one release, or of every replay without ?release=.
+    // The Glicko leaderboard of one release, or of every replay without ?release=. ?minGames=N drops players
+    // with fewer rated games, ?sort=conservative ranks by rating minus two deviations.
     server.get('/glicko-leaderboard', {
         schema: {
             response: {
@@ -389,7 +390,9 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        reply.send(server.glicko2Manager.store.leaderboard(releaseParam(request)));
+        const query = request.query as { minGames?: string, sort?: string };
+        const minGames = Math.max(1, Math.floor(Number(query.minGames)) || 1);
+        reply.send(server.glicko2Manager.store.leaderboard(releaseParam(request), minGames, query.sort === "conservative"));
     });
 
     type GetMatchByIdRequest = FastifyRequest<{ Params: { matchId: string } }>;

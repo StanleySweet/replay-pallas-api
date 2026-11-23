@@ -16,3 +16,28 @@ Feature: Refreshing the data derived from the replays
     When the derived data is rebuilt
     Then the rebuild is rejected with "ratings broke"
     And the releases and glicko steps did not run
+
+  Scenario: Nothing is recomputed when no replay changed
+    Given the derived data was computed for the replays "3:7"
+    When the derived data is refreshed for the replays "3:7"
+    Then no step ran
+
+  Scenario: A new replay brings the refresh back
+    Given the derived data was computed for the replays "3:7"
+    When the derived data is refreshed for the replays "4:8"
+    Then the steps ran in this order: replays, local ratings, releases, glicko
+
+  Scenario: A forced rebuild runs even when no replay changed
+    Given the derived data was computed for the replays "3:7"
+    When the derived data is rebuilt by force for the replays "3:7"
+    Then the steps ran in this order: replays, local ratings, releases, glicko
+
+  Scenario: A day without a change still refreshes, because the Glicko preview deviation grows with time
+    Given the derived data was computed for the replays "3:7" more than a day ago
+    When the derived data is refreshed for the replays "3:7"
+    Then the steps ran in this order: replays, local ratings, releases, glicko
+
+  Scenario: A failing step is counted for the alert
+    Given the local ratings step fails
+    When the derived data is rebuilt
+    Then the failure counter of the stage "local ratings" went up by 1

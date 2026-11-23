@@ -63,4 +63,19 @@ export const databaseRebuildDuration = new Histogram({
   buckets: [100, 500, 1000, 5000, 10000, 30000, 60000],
 });
 
+// Background work that can fail without any request noticing: the metadata rebuild and the refresh of
+// the data derived from the replays (ratings, releases, Glicko). Alert on the failures counter going up,
+// or on the last success being older than a few hours for derived-data.
+export const rebuildFailuresTotal = new Counter({
+  name: 'rebuild_failures_total',
+  help: 'Failed background rebuilds',
+  labelNames: ['stage'], // metadata, replays, local ratings, releases, glicko
+});
+
+export const rebuildLastSuccess = new Gauge({
+  name: 'rebuild_last_success_timestamp_seconds',
+  help: 'Unix time of the last successful background rebuild',
+  labelNames: ['stage'], // metadata, derived-data
+});
+
 export { register };

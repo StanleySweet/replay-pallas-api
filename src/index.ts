@@ -19,7 +19,7 @@ import { EngineInstance } from "./types/Engine";
 import BetterDatabase from "better-sqlite3";
 import { migrate } from "./migrate";
 import { MetadataRebuildJob } from "./replays/RebuildJob";
-import { rebuildDerivedData } from "./replays/derivedData";
+import { markDerivedDataCurrent, rebuildDerivedData } from "./replays/derivedData";
 import { backfillGameRelease } from "./replays/gameRelease";
 import { ReplayRepository } from "./repositories/ReplayRepository";
 import { PlayerRepository } from "./repositories/PlayerRepository";
@@ -263,6 +263,7 @@ const start = async () => {
     backfillGameRelease(server.replays);
 
     const { ratingsDb, replayDb, aliasDb, releases } = init_LocalRatings(server.replays);
+    markDerivedDataCurrent(server.replays.dataSignature());
 
     server.glicko2Manager = new Glicko2Manager(bdb);
     if (server.glicko2Manager.hasCache() && server.glicko2Manager.hasReleaseRatings()) {
@@ -275,10 +276,10 @@ const start = async () => {
     const task = new AsyncTask(
         'simple task',
         async () => {
-            await rebuildDerivedData(server);
+            await rebuildDerivedData(server, server.replays.dataSignature());
             bdb.pragma('optimize');
         },
-        (err) => { /* handle errors here */ }
+        (err) => { logger.error({ err }, "The hourly refresh of the derived data failed"); }
     )
     const job = new SimpleIntervalJob({ seconds: 3600, }, task)
     server.scheduler.addSimpleIntervalJob(job)
