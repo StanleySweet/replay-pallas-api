@@ -29,6 +29,10 @@ export class Suppression {
         return row?.pseudonym;
     }
 
+    exists(person: number): boolean {
+        return !!this.db.prepare("SELECT 1 FROM suppressed_person WHERE id = ?").get(person);
+    }
+
     // Adds a nick to a person (created on first use). The pseudonym is random, stored, and one byte
     // longer on each clash, so adding an alias never changes it.
     add(nick: string, person?: number): number {

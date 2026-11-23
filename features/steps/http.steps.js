@@ -65,3 +65,11 @@ Then('the files of {string} never mention {string}', function (id, nick) { asser
 Then('the files of {string} mention a pseudonym', function (id) { assert.match(this.files[id], PSEUDONYM); });
 Then('the files of {string} and {string} hold the same pseudonym', function (a, b) { assert.strictEqual(this.files[a].match(PSEUDONYM)[0], this.files[b].match(PSEUDONYM)[0]); });
 Then('the lobby players do not include {string}', function (nick) { assert.ok(!this.last.body.some(p => p.nick === nick)); });
+
+const suppress = async (world, nick, person) => {
+    world.last = await world.fetch('/replays/suppress', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nick, person }) });
+    return world.last;
+};
+When('{string} is suppressed', async function (nick) { await suppress(this, nick); this.persons = { ...this.persons, [nick]: this.last.body.person }; });
+When('{string} is suppressed as an alias of the person of {string}', async function (nick, other) { await suppress(this, nick, this.persons[other]); });
+When('{string} is suppressed as an alias of person {int}', async function (nick, person) { await suppress(this, nick, person); });

@@ -182,6 +182,35 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         return result;
     }
 
+    // Adds a nick to the players who asked to be erased. Without "person" it opens a new person with
+    // a new pseudonym; with it, the nick becomes an alias of that person and gets the same pseudonym.
+    // Replays already stored are not touched: that is the one-off rewrite.
+    type SuppressRequest = FastifyRequest<{ Body: { nick?: string, person?: number } }>;
+    server.post('/suppress', {
+        schema: { body: { type: 'object', required: ['nick'], properties: { nick: { type: 'string', minLength: 1 }, person: { type: 'integer' } } }, ...schemaCommon }
+    }, async (request: SuppressRequest, reply: FastifyReply): Promise<void> => {
+        if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
+            reply.code(401);
+            reply.send();
+            return;
+        }
+        // No key, no matcher: say so instead of silently storing nothing.
+        if (!server.suppression.enabled) {
+            reply.code(503);
+            reply.send();
+            return;
+        }
+        const { person } = request.body;
+        const nick = request.body.nick as string;
+        if (person !== undefined && !server.suppression.exists(person)) {
+            reply.code(404);
+            reply.send();
+            return;
+        }
+        const id = server.suppression.add(nick, person);
+        reply.send({ person: id, pseudonym: server.suppression.pseudonymOf(nick) });
+    });
+
     server.post('/upload-zip', {
         schema: {
             response: {
