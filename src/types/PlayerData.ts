@@ -11,9 +11,6 @@ const PlayerDataSchema = z.object({
     State: z.string(),
     LobbyUserId : z.number(),
     NumberOfCommands: z.number(),
-    // Rows that were not rebuilt yet still hold the commands. The response schema strips unknown keys,
-    // so the field stays declared until every replay is rebuilt, or their order count would show blank.
-    Commands: z.array(z.any()),
     SecondMostUsedCmd: z.string(),
     MostUsedCmd: z.string()
 }).partial();
