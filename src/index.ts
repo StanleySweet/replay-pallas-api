@@ -19,6 +19,7 @@ import { EngineInstance } from "./types/Engine";
 import BetterDatabase from "better-sqlite3";
 import { migrate } from "./migrate";
 import { MetadataRebuildJob } from "./replays/RebuildJob";
+import { rebuildDerivedData } from "./replays/derivedData";
 import { backfillGameRelease } from "./replays/gameRelease";
 import { ReplayRepository } from "./repositories/ReplayRepository";
 import { PlayerRepository } from "./repositories/PlayerRepository";
@@ -27,7 +28,7 @@ import { LocalRatingsRepository } from "./repositories/LocalRatingsRepository";
 import { init_LocalRatings } from "./local-ratings/utilities/functions_utility";
 import { LocalRatingsController } from "./controllers/LocalRatingsController";
 import { Glicko2Manager } from "./instant-glicko-2/Glicko2Manager";
-import { Task, SimpleIntervalJob } from "toad-scheduler";
+import { AsyncTask, SimpleIntervalJob } from "toad-scheduler";
 import fastifySchedulePlugin from "@fastify/schedule";
 import { HealthController } from "./controllers/HealthController";
 import { logger } from './logger';
@@ -271,12 +272,10 @@ const start = async () => {
         server.glicko2Manager.rebuild();
     }
 
-    const task = new Task(
+    const task = new AsyncTask(
         'simple task',
-        () => { 
-            server.glicko2Manager.rebuild() 
-            server.ratingsDb.rebuild();
-            server.releases.rebuild();
+        async () => {
+            await rebuildDerivedData(server);
             bdb.pragma('optimize');
         },
         (err) => { /* handle errors here */ }

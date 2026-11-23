@@ -33,7 +33,7 @@ class MetadataRebuildJob {
 
     // Starts the rebuild unless one is running. `afterwards` runs on the main thread once the worker
     // has written its results: it refreshes the in-memory caches that are derived from them.
-    start(databasePath: string, afterwards: () => void): boolean {
+    start(databasePath: string, afterwards: () => void | Promise<void>): boolean {
         if (this.running)
             return false;
 
@@ -41,14 +41,14 @@ class MetadataRebuildJob {
         this.status = { ...idle(), state: "reading", startedAt: new Date().toISOString() };
 
         const worker = new Worker(path.join(__dirname, "rebuildWorker.js"), { workerData: { databasePath } });
-        worker.on("message", (message: { type: string, progress?: RebuildProgress, message?: string }) => {
+        worker.on("message", async (message: { type: string, progress?: RebuildProgress, message?: string }) => {
             if (message.progress)
                 this.status = { ...this.status, state: message.progress.phase, done: message.progress.done, total: message.progress.total, skipped: message.progress.skipped };
 
             if (message.type === "done") {
                 this.status.state = "finishing";
                 try {
-                    afterwards();
+                    await afterwards();
                     this.finish("done", null);
                 }
                 catch (error) {

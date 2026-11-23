@@ -109,7 +109,10 @@ export class LocalRatingsMetadataContainer {
     }
 
     getScores(playerName: string): LocalRatingsSequences {
-        const fullMetadata: ReplayMetaData = Engine.GetReplayMetadata(this.directory);
+        // attribs is the stored metadata when the container comes from the database, which is what
+        // this read used to fetch again for every player of every replay (a query, a decompression
+        // and a JSON parse each time). It is only read again when attribs is not the whole thing.
+        const fullMetadata: ReplayMetaData = this.attribs.playerStates ? this.attribs : Engine.GetReplayMetadata(this.directory);
         if (fullMetadata.playerStates) {
             const sequencesArray = fullMetadata.playerStates.filter(x => x.name == playerName);
             if (sequencesArray.length) {
