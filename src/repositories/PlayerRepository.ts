@@ -43,9 +43,11 @@ class PlayerRepository {
         }) as { "elo": number, "date": string }[];
     }
 
-    glickoHistory(lobbyPlayerId: number): GlickoElo[] {
-        return this.db.prepare("Select elo, date, deviation, volatility, preview_deviation, match_count From glicko2_rankings Where lobby_player_id = @lobby_player_id").all({
+    // release null is the rating over every replay, a number the rating over that 0 A.D. release only.
+    glickoHistory(lobbyPlayerId: number, release: number | null = null): GlickoElo[] {
+        return this.db.prepare("Select elo, date, deviation, volatility, preview_deviation, match_count From glicko2_rankings Where lobby_player_id = @lobby_player_id And game_release IS @release").all({
             "lobby_player_id": lobbyPlayerId,
+            "release": release,
         }) as GlickoElo[];
     }
 

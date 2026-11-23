@@ -33,8 +33,8 @@ class LocalRatingsRepository {
 
     // Glicko 2 is tracked per lobby player, the local ratings per nick, so the two only meet
     // through lobby_players.nick. Players without a rated match yet have no row at all.
-    latestGlicko(nick: string): GlickoElo | undefined {
-        return this.db.prepare('SELECT elo, deviation, match_count FROM glicko2_rankings Where lobby_player_id = (SELECT id FROM lobby_players Where nick = @nick) Order By date desc, id desc Limit 1;').get({ "nick": nick }) as GlickoElo | undefined;
+    latestGlicko(nick: string, release: number | null = null): GlickoElo | undefined {
+        return this.db.prepare('SELECT elo, deviation, match_count FROM glicko2_rankings Where lobby_player_id = (SELECT id FROM lobby_players Where nick = @nick) And game_release IS @release Order By date desc, id desc Limit 1;').get({ "nick": nick, "release": release }) as GlickoElo | undefined;
     }
 
     // The in-game ladder rating is a different number from the glicko one.

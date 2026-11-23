@@ -30,6 +30,8 @@ class PallasGlickoRating {
     "match_count": number;
     "preview_deviation": number;
     "date":string;
+    // null: rated over every replay. A number: rated over the replays of that 0 A.D. release only.
+    "game_release": number | null;
 }
 
 
@@ -97,7 +99,7 @@ class Glicko2Manager {
         logger.info(`Loading the glicko2 database. ${this.ratings.length} ratings(s) were loaded for ${new Set(this.ratings.map(a => a.lobby_player_id)).size} player(s).`);
     }
 
-    process_replays(replays: Replays): void {
+    process_replays(replays: Replays, release: number | null = null): void {
         const players: Map<string, Rating> = new Map<string, Rating>();
         const playersIds: Map<string, number> = new Map<string, number>();
         const playersMatchCount: Map<string, number> = new Map<string, number>();
@@ -155,6 +157,7 @@ class Glicko2Manager {
                         "lobby_player_id": playersIds.get(key),
                         "match_count": playersMatchCount.get(key),
                         "date": date_string,
+                        "game_release": release,
                         "preview_deviation": this.calculator.previewDeviation(value, new Date(), false) ?? Rating.defaultDeviation
                     }));
                 }
@@ -170,10 +173,15 @@ class Glicko2Manager {
         try {
             this.rebuilding = true;
             this.store.clear();
-            const replays: Replays = this.store.ratedPairReplays();
+            const replays = this.store.ratedPairReplays();
             logger.info(`Rebuilding the glicko2 database. ${replays.length} replays(s) were found.`);
             this.ratings = [];
-            this.process_replays(replays);
+            // Rated once over everything, which is the set the pages show by default, then once per
+            // release. process_replays unpacks the rows it is given, so each pass gets its own copies.
+            this.process_replays(replays.map(replay => ({ ...replay })), null);
+            const releases = [...new Set(replays.map(replay => replay.game_release).filter((release): release is number => !!release))].sort((a, b) => a - b);
+            for (const release of releases)
+                this.process_replays(replays.filter(replay => replay.game_release === release).map(replay => ({ ...replay })), release);
             this.save();
             this.load();
         }

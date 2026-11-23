@@ -15,6 +15,7 @@ import { LocalRatingsDistributionChartOptions } from "../local-ratings/Distribut
 import { LocalRatingsSettingsManager } from "../local-ratings/Settings";
 import { LocalRatingsPlayerFilter } from "../local-ratings/PlayerFilter";
 import { Civilizations } from "../types/Civilization";
+import { releaseParam } from "../replays/releaseParam";
 
 const RankDataSchema = z.object({
     "rank": z.number(),
@@ -156,14 +157,16 @@ const PallasGlickoRatingSchema = z.object({
 
 
 const get_glicko_ratings = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
-    if (request.claims?.role ?? 0 < EUserRole.READER) {
+    if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
         reply.send();
         return;
     }
 
     try {
-        reply.send(fastify.glicko2Manager.ratings);
+        // Without ?release= the ratings over every replay, with it the ratings of that 0 A.D. release.
+        const release = releaseParam(request);
+        reply.send(fastify.glicko2Manager.ratings.filter(rating => rating.game_release === release));
     }
     catch (err) {
         fastify.log.error(err);
@@ -654,7 +657,7 @@ const get_player_profile = async (request: GetPlayerProfileRequest, reply: Fasti
     // Glicko 2 is tracked per lobby player, the local ratings per nick, so the
     // two only meet through lobby_players.nick. Players without a rated match
     // yet have no row at all.
-    const glicko = fastify.localRatings.latestGlicko(player);
+    const glicko = fastify.localRatings.latestGlicko(player, releaseParam(request));
 
     // The in-game ladder rating is a different number from the glicko one above:
     // UserController defaults it to 1200 for players who never ranked, which we

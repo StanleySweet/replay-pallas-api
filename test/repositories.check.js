@@ -100,7 +100,7 @@ check('users: statistics cache inserts once, then updates', () => {
 
 check('glicko: save inserts then updates the same player and match count', () => {
     const p = players.findOrCreateId('Dave');
-    const r = (elo) => ({ elo, deviation: 1, volatility: 0.06, lobby_player_id: p, preview_deviation: 1, match_count: 1, date: '2026-01-01' });
+    const r = (elo) => ({ elo, deviation: 1, volatility: 0.06, lobby_player_id: p, preview_deviation: 1, match_count: 1, date: '2026-01-01', game_release: null });
     glicko.save(r(1500)); glicko.save(r(1600));
     assert.strictEqual(glicko.all().length, 1);
     assert.strictEqual(glicko.all()[0].elo, 1600);

@@ -15,6 +15,7 @@ import { extract_commands_data, extract_commands_stats } from "../replays/comman
 import { update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import { isBrotliBlob, packBlob, unpackBlob } from "../replays/blobCodec";
 import { gameRelease } from "../replays/gameRelease";
+import { releaseParam } from "../replays/releaseParam";
 import EUserRole from "../enumerations/EUserRole";
 import { z } from "zod";
 import { MetadataSettings } from "../types/MetadataSettings";
@@ -39,11 +40,10 @@ function get_list_items_from_local_ratings(matchIds: string[], reply: FastifyRep
     reply.send(replays);
 }
 
-// ?release=28 keeps only the replays played on that 0 A.D. release. No parameter, or one that is not a
-// whole number, keeps everything.
+// ?release=28 keeps only the replays played on that 0 A.D. release.
 function filterByRelease(request: FastifyRequest, fastify: FastifyInstance, matchIds: string[]): string[] {
-    const release = Number((request.query as { release?: string } | undefined)?.release);
-    if (!Number.isInteger(release))
+    const release = releaseParam(request);
+    if (release === null)
         return matchIds;
 
     const wanted = fastify.replays.matchIdsForRelease(release);

@@ -13,6 +13,7 @@ import { PallasTokenPayload, PallasUserToken, PallasUserTokenSchema } from "../t
 import { JOSE_ALG as alg, JOSE_SECRET } from "../project_globals";
 import { mode } from "../Utils";
 import { unpackBlob } from "../replays/blobCodec";
+import { releaseParam } from "../replays/releaseParam";
 import { LocalRatingsReplay } from "../local-ratings/Replay";
 import { RawPlayerStatisticsData } from "../types/RawPlayerStatisticsData";
 import { PlayerStatistics } from "../types/PlayerStatistics";
@@ -24,7 +25,7 @@ function padNumber(number: number) {
 
 const avg = (array: number[]) => array.reduce((a, b) => a + b) / array.length;
 
-const get_chart_data = (fastify: FastifyInstance, lobby_user: number): EloGraph => {
+const get_chart_data = (fastify: FastifyInstance, lobby_user: number, release: number | null = null): EloGraph => {
 
     function avg_rating(singleGamesRatings: { "elo": number, "date": string }[]): { "elo": number, "date": string }[] {
         const singleGamesRatingsSum = [singleGamesRatings[0]];
@@ -38,7 +39,7 @@ const get_chart_data = (fastify: FastifyInstance, lobby_user: number): EloGraph 
 
     let game_ranking = fastify.players.rankingHistory(lobby_user);
 
-    let glicko_ranking: GlickoElo[] = fastify.players.glickoHistory(lobby_user);
+    let glicko_ranking: GlickoElo[] = fastify.players.glickoHistory(lobby_user, release);
 
     game_ranking = game_ranking.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     glicko_ranking = glicko_ranking.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -104,7 +105,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
         return;
     }
 
-    result.graph = get_chart_data(fastify, request.params.id);
+    result.graph = get_chart_data(fastify, request.params.id, releaseParam(request));
 
     // users.nick has no UNIQUE constraint, and the duplicates that exist were registered
     // before create_user refused a taken nick, so this lookup is genuinely ambiguous. Pin it
@@ -231,7 +232,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     const lobby_user = fastify.players.idForUser(request.params.id);
 
     if (lobby_user)
-        result.graph = get_chart_data(fastify, lobby_user);
+        result.graph = get_chart_data(fastify, lobby_user, releaseParam(request));
 
 
     result = Object.assign(result, user);
