@@ -1,6 +1,6 @@
 {
   "name": "replay-pallas-api",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "A simple API for storing replays and their metadata.",
   "main": "src/index.ts",
   "author": "Stanislas Daniel Claude Dolcini",
