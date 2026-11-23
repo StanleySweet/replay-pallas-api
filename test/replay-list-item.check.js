@@ -2,15 +2,22 @@
 // filter and the version display need. Run: node test/replay-list-item.check.js (after a build).
 
 const assert = require("assert");
-const Database = require("better-sqlite3");
 const { toReplayListItem } = require("../dist/controllers/helpers/replayListItem");
 const { LocalRatingsMinifier } = require("../dist/local-ratings/Minifier");
-const { EngineInstance } = require("../dist/types/Engine");
 
-const db = new Database("dist/cache/replay-pallas.sqlite3");
-EngineInstance.database = db;
-const magnified = new LocalRatingsMinifier().magnifyReplayDatabase(
-    Object.fromEntries(db.prepare("SELECT match_id, data FROM local_replays").all().map(r => [r.match_id, JSON.parse(r.data)])));
+// A small replay cache built here, so the check does not depend on whatever database is lying around.
+// It goes through the minifier both ways, as the real cache does.
+const replay = (id, date, mods) => ({
+    isValid: true, directory: id, date, players: ["Alice", "Bob"], civs: ["athen", "spart"], scores: [{}, {}], mods,
+    duration: 1800, startingResources: 300, populationCap: 300, worldPopulation: false, hasAiPlayers: false,
+    cheatsEnabled: false, revealedMap: false, exploredMap: false, nomad: false, teamsSize: { 0: 1, 1: 1 }, mapName: "Mainland",
+});
+const minifier = new LocalRatingsMinifier();
+const magnified = minifier.magnifyReplayDatabase(minifier.minifyReplayDatabase({
+    A: replay("A", "2026-01-02", ["0ad 0.28.0", "feldmap 3.0.1"]),
+    B: replay("B", "2026-01-03", ["0ad 0.27.1"]),
+    C: replay("C", "2025-12-31", []),
+}));
 
 let failed = 0;
 const check = (name, fn) => {
@@ -62,5 +69,4 @@ check("a replay with non-string mods entries does not corrupt the payload", () =
 
 const total = 6;
 console.log(`\n${total - failed}/${total} passed`);
-db.close();
 process.exit(failed ? 1 : 0);

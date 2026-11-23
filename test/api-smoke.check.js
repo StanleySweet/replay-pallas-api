@@ -1,6 +1,7 @@
 // Smoke test ("recette") of the running API: the contract the frontend depends on,
 // plus regression guards for the duplicate-link and duplicate-account bugs.
 //
+//   node test/run-smoke.js                       boots a seeded API of its own and runs this against it
 //   API_URL=http://localhost:8080 node test/api-smoke.check.js
 //
 // Authenticated half:
