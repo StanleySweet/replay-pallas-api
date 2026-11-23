@@ -171,7 +171,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     {
         compute_statistics(result, statisticData);
         if (release === null)
-            cacheUserStatistics(fastify, request, result);
+            cacheUserStatistics(fastify, request.params.id, result);
     }
 
     reply.send(result);
@@ -264,7 +264,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     let hasMoreData = true;
     result.replays = [];
     while (hasMoreData) {
-        const replays = fastify.players.replaysPageForUser(lobby_user, !hasStatisticCache, offset, release);
+        const replays = lobby_user === undefined ? [] : fastify.players.replaysPage(lobby_user, !hasStatisticCache, offset, release);
 
         // Check if there's no more data
         if (replays.length === 0) {
@@ -293,8 +293,8 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     if (!hasStatisticCache)
     {
         compute_statistics(result, statisticData);
-        if (release === null)
-            cacheUserStatistics(fastify, request, result);
+        if (release === null && lobby_user !== undefined)
+            cacheUserStatistics(fastify, lobby_user, result);
     }
 
     reply.send(result);
@@ -626,7 +626,7 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
     done();
 };
 
-function cacheUserStatistics(fastify : FastifyInstance, request: GetUserByIdRequest, result: { id: number; nick: string; role: EUserRole; creation_date: Date; AverageCPM: number; WinRateRatio: number; TotalPlayedTime: number; SecondMostUsedCmd: string; MostUsedCmd: string; MatchCount: number; replays: { date: string; mapName: string; playerNames: string[]; civs: string[]; matchId: string; }[]; graph?: { glicko_series: { x: string; y: number; }[]; glicko_series_avg: { x: string; y: number; }[]; game_series: { x: string; y: number; }[]; game_series_avg: { x: string; y: number; }[]; current_game_elo?: number | undefined; current_glicko_elo?: { date: string; elo: number; deviation: number; volatility: number; preview_deviation: number; } | undefined; } | undefined; }) {
+function cacheUserStatistics(fastify : FastifyInstance, lobbyPlayerId: number, result: { id: number; nick: string; role: EUserRole; creation_date: Date; AverageCPM: number; WinRateRatio: number; TotalPlayedTime: number; SecondMostUsedCmd: string; MostUsedCmd: string; MatchCount: number; replays: { date: string; mapName: string; playerNames: string[]; civs: string[]; matchId: string; }[]; graph?: { glicko_series: { x: string; y: number; }[]; glicko_series_avg: { x: string; y: number; }[]; game_series: { x: string; y: number; }[]; game_series_avg: { x: string; y: number; }[]; current_game_elo?: number | undefined; current_glicko_elo?: { date: string; elo: number; deviation: number; volatility: number; preview_deviation: number; } | undefined; } | undefined; }) {
     const currentDate = new Date();
     const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
 
@@ -637,7 +637,7 @@ function cacheUserStatistics(fastify : FastifyInstance, request: GetUserByIdRequ
         "most_used_cmd": result.MostUsedCmd,
         "win_rate_ratio": result.WinRateRatio,
         "average_cpm": result.AverageCPM,
-        "lobby_player_id": request.params.id,
+        "lobby_player_id": lobbyPlayerId,
         "modification_date": formattedDate
     });
 }
