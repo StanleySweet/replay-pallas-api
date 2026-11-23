@@ -1,13 +1,17 @@
 
-const mode = (commandArray: string[]): string =>
-commandArray.reduce(
-    (a, b: string, _: number, arr: string[]) =>
-        arr.filter((v: string) => v === a).length >=
-            arr.filter((v) => v === b).length
-            ? a
-            : b,
-    ""
-);
+// The most frequent entry, the first one reached when counts tie. Counts are tallied once so this is
+// linear: comparing two entries by filtering the whole array each time was quadratic, and a player has
+// thousands of commands.
+const mode = (commandArray: string[]): string => {
+    const counts = new Map<string, number>();
+    for (const value of commandArray)
+        counts.set(value, (counts.get(value) ?? 0) + 1);
+
+    return commandArray.reduce(
+        (a: string, b: string) => (counts.get(a) ?? 0) >= (counts.get(b) ?? 0) ? a : b,
+        ""
+    );
+};
 
 export {
     mode
