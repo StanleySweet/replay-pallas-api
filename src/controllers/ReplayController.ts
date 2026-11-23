@@ -545,7 +545,13 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replays: Replays = server.replays.allMetadataNewestFirst(releaseParam(request));
+        // The whole metadata of every replay is hundreds of MB once unpacked: asking for all of it crashed the
+        // process when restoring a backup of the real data. A page of the newest ones, 200 unless ?limit= (at
+        // most 1000) says otherwise, and ?offset= for the next.
+        const query = request.query as { limit?: string, offset?: string };
+        const limit = Math.min(1000, Math.max(1, Math.floor(Number(query.limit)) || 200));
+        const offset = Math.max(0, Math.floor(Number(query.offset)) || 0);
+        const replays: Replays = server.replays.allMetadataNewestFirst(releaseParam(request), limit, offset);
         for (const element of replays)
             element.metadata = JSON.parse(unpackBlob(element.metadata as string));
         reply.send(replays);

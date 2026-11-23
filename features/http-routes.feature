@@ -58,3 +58,10 @@ Feature: The HTTP routes
     Given a token with role 2
     When a request asks for "/replays/rebuild-replay-metadata"
     Then the answer is 401
+
+  Scenario: Asking for every replay is paged, so it cannot take the server down
+    Given a token with role 1
+    When a request asks for "/replays/all?limit=2"
+    Then the list holds 2 replays
+    When a request asks for "/replays/all?limit=2&offset=2"
+    Then the list holds 1 replays

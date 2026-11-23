@@ -124,8 +124,9 @@ class ReplayRepository {
         return this.db.prepare(`SELECT match_id, metadata FROM replays WHERE (@release IS NULL OR game_release = @release) ORDER BY creation_date desc LIMIT 10;`).all({ release }) as Replays;
     }
 
-    allMetadataNewestFirst(release: number | null = null): Replays {
-        return this.db.prepare('SELECT match_id, metadata FROM replays WHERE (@release IS NULL OR game_release = @release) ORDER BY creation_date desc').all({ release }) as Replays;
+    // limit -1 is no limit in SQLite.
+    allMetadataNewestFirst(release: number | null = null, limit = -1, offset = 0): Replays {
+        return this.db.prepare('SELECT match_id, metadata FROM replays WHERE (@release IS NULL OR game_release = @release) ORDER BY creation_date desc LIMIT @limit OFFSET @offset').all({ release, limit, offset }) as Replays;
     }
 
     // The replays a user uploaded, newest link first.
