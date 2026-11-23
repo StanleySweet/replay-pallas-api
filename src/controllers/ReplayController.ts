@@ -133,7 +133,8 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
         const mpNames = replays.map(replay => {
             const names: string[] = [];
             if (replay.metadata.settings && replay.metadata.settings.PlayerData) {
-                for (const nameWithoutRating of replay.metadata.settings.PlayerData.map(a => a.NameWithoutRating))
+                // AI players are in PlayerData but not in the lobby tables: upload leaves them out, and so does this.
+                for (const nameWithoutRating of replay.metadata.settings.PlayerData.filter(a => a && !a.AI).map(a => a.NameWithoutRating))
                     if (nameWithoutRating)
                         names.push(nameWithoutRating);
             }
