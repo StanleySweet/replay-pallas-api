@@ -64,7 +64,7 @@ check('no cacheVersion.json sidecar is written any more', () => {
 
 check('the port is opened after init_LocalRatings, not before', () => {
     const iListen = indexSource.indexOf('await server.listen(');
-    const iInit = indexSource.indexOf('init_LocalRatings()');
+    const iInit = indexSource.indexOf('init_LocalRatings(');
     assert.ok(iListen !== -1 && iInit !== -1, 'listen or init call missing');
     assert.ok(iInit < iListen, 'the port still opens before the databases are ready');
     assert.ok(!/server\.listen\(\{[^}]*\}, async/.test(indexSource),

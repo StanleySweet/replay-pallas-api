@@ -20,12 +20,18 @@ const { LocalRatingsCache } = require(path.join(ROOT, 'dist', 'local-ratings', '
 // The Up section of the real migration, so the test cannot drift from the schema.
 const migration = fs.readFileSync(path.join(ROOT, 'src', 'migrations', '013-local-cache-tables.sql'), 'utf8');
 const up = migration.slice(migration.indexOf('-- Up'), migration.indexOf('-- Down'));
+const scopeMigration = fs.readFileSync(path.join(ROOT, 'src', 'migrations', '016-local-ratings-scope.sql'), 'utf8');
+const scopeUp = scopeMigration.slice(scopeMigration.indexOf('-- Up'), scopeMigration.indexOf('-- Down'));
 
 const freshDb = () => {
     const db = new D(':memory:');
     db.pragma('foreign_keys = ON');
     db.exec('CREATE TABLE replays (id integer PRIMARY KEY, match_id text NOT NULL UNIQUE);');
     db.exec(up);
+    // Rebuilds the tables, so it runs with foreign keys off, as the migration runner does.
+    db.pragma('foreign_keys = OFF');
+    db.exec(scopeUp);
+    db.pragma('foreign_keys = ON');
     db.exec("INSERT INTO replays (match_id) VALUES ('AAAA'), ('BBBB');");
     EngineInstance.SetDataBase(db);
     return db;
