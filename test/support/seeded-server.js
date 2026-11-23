@@ -59,7 +59,7 @@ const startSeededServer = async (port = 18099) => {
         const seat = (name, lobby, team) => ({ Name: name, NameWithoutRating: name, LobbyUserId: lobby, Team: team, State: name === winner ? 'won' : 'defeated' });
         replays.insert({
             matchId: id, creationDate: `${date} 10:00:00`, gameRelease: release, filedata: Buffer.from('f'),
-            metadata: packBlob(JSON.stringify({ matchID: id, timestamp: 1, settings: { PlayerData: [seat('Alice', alice, 0), seat('Bob', bob, 1)] } })),
+            metadata: packBlob(JSON.stringify({ matchID: id, timestamp: 1, mods: [{ name: '0ad', version: '0.28.0' }], settings: { PlayerData: [seat('Alice', alice, 0), seat('Bob', bob, 1)] } })),
         });
         replays.linkLobbyPlayer(id, alice); replays.linkLobbyPlayer(id, bob);
         cacheReplays[id] = {
@@ -82,7 +82,7 @@ const startSeededServer = async (port = 18099) => {
     new (dist('replays/pseudonym.js').Suppression)(db, 'smoke-key').add('Mallory');
     db.close();
 
-    const server = spawn(process.execPath, [...process.execArgv, 'dist/index.js'], { cwd: work, env: { ...process.env, JOSE_SECRET: secret, PSEUDONYM_KEY: 'smoke-key', API_PORT: String(port) }, stdio: ['ignore', 'ignore', 'inherit'] });
+    const server = spawn(process.execPath, [...process.execArgv, 'dist/index.js'], { cwd: work, env: { ...process.env, JOSE_SECRET: secret, PSEUDONYM_KEY: 'smoke-key', API_PORT: String(port) }, stdio: ['ignore', process.env.SERVER_LOG ? 'inherit' : 'ignore', 'inherit'] });
     const url = `http://localhost:${port}`;
     for (let i = 0; i < 120; i++) {
         try { if ((await fetch(`${url}/swagger/json`)).ok) break; } catch { /* not listening yet */ }

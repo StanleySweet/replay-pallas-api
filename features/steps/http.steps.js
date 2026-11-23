@@ -73,3 +73,6 @@ const suppress = async (world, nick, person) => {
 When('{string} is suppressed', async function (nick) { await suppress(this, nick); this.persons = { ...this.persons, [nick]: this.last.body.person }; });
 When('{string} is suppressed as an alias of the person of {string}', async function (nick, other) { await suppress(this, nick, this.persons[other]); });
 When('{string} is suppressed as an alias of person {int}', async function (nick, person) { await suppress(this, nick, person); });
+
+When('the stored replays are erased', async function () { this.last = await this.fetch('/replays/erase', { method: 'POST' }); });
+Then('the lobby players include one pseudonym', function () { assert.strictEqual(this.last.body.filter(p => /^Player~[0-9A-F]{8,}$/.test(p.nick)).length >= 1, true); });

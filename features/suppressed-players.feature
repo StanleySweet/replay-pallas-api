@@ -50,3 +50,29 @@ Feature: Players who asked to be erased
     Given a token with role 3
     When "Oz" is suppressed as an alias of person 9999
     Then the answer is 404
+
+  Scenario: The replays already stored are rewritten when a player is erased
+    Given a token with role 2
+    When a replay "E-1" played on 0.28.0 by "Victor" and "Dave" is uploaded
+    And a replay "E-2" played on 0.28.0 by "VICTOR" and "Dave" is uploaded
+    Given a token with role 3
+    When "Victor" is suppressed
+    And the stored replays are erased
+    Then the answer is 200
+    When the files of "E-1" are downloaded
+    And the files of "E-2" are downloaded
+    Then the files of "E-1" never mention "Victor"
+    And the files of "E-2" never mention "VICTOR"
+    And the files of "E-1" and "E-2" hold the same pseudonym
+    When a request asks for "/lobby-users"
+    Then the lobby players do not include "Victor"
+    And the lobby players do not include "VICTOR"
+    And the lobby players include one pseudonym
+    When a request asks for "/replays/E-1"
+    Then the answer is 200
+
+  Scenario: Erasing twice changes nothing
+    Given a token with role 3
+    When the stored replays are erased
+    And the stored replays are erased
+    Then the answer is 200

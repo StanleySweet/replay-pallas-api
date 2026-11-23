@@ -5,6 +5,7 @@
 
 import { rebuildDerivedData } from "../replays/derivedData";
 import { pseudonymize } from "../replays/pseudonym";
+import { erasePlayers } from "../replays/erase";
 import AdmZip, { IZipEntry } from "adm-zip";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { UploadReplayZipResponse, UploadReplayZipResponseSchema } from "../types/UploadReplayZipResponse";
@@ -209,6 +210,25 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         }
         const id = server.suppression.add(nick, person);
         reply.send({ person: id, pseudonym: server.suppression.pseudonymOf(nick) });
+    });
+
+    // Applies the suppression list to what is already stored, then rebuilds what is derived from it.
+    // Take a backup first: the replays of the suppressed players are rewritten in place.
+    server.post('/erase', { schema: { ...schemaCommon } }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        if ((request.claims?.role ?? 0) < EUserRole.ADMINISTRATOR) {
+            reply.code(401);
+            reply.send();
+            return;
+        }
+        if (!server.suppression.enabled) {
+            reply.code(503);
+            reply.send();
+            return;
+        }
+        const result = erasePlayers(server.database, server.suppression, server.aliasDb.aliasesDatabase);
+        server.aliasDb.save();
+        await rebuildDerivedData(server, server.replays.dataSignature(), true);
+        reply.send(result);
     });
 
     server.post('/upload-zip', {
