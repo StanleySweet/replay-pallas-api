@@ -514,6 +514,28 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         reply.type('application/zip').send(zip.toBuffer());
     });
 
+    // The 0 A.D. releases that have replays, with how many: what the release selector offers.
+    server.get('/releases', {
+        schema: {
+            response: {
+                200: zodToJsonSchema(z.array(z.object({ release: z.number(), replays: z.number() }))),
+                "403": {
+                    type: 'null',
+                    description: 'Unauthorized'
+                }
+            },
+            ...schemaCommon
+        }
+    }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        if ((request.claims?.role ?? 0) < EUserRole.READER) {
+            reply.code(403);
+            reply.send();
+            return;
+        }
+
+        reply.send(server.replays.releases());
+    });
+
     type GetMatchByIdRequest = FastifyRequest<{ Params: { matchId: string } }>;
 
     server.get('/:matchId', {
@@ -614,7 +636,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             reply.send();
             return;
         }
-        const replays: Replays = server.replays.latestMetadata();
+        const replays: Replays = server.replays.latestMetadata(releaseParam(request));
         for (const element of replays)
             element.metadata = JSON.parse(unpackBlob(element.metadata as string));
         reply.send(replays);
@@ -664,7 +686,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replays: Replays = server.replays.allMetadataNewestFirst();
+        const replays: Replays = server.replays.allMetadataNewestFirst(releaseParam(request));
         for (const element of replays)
             element.metadata = JSON.parse(unpackBlob(element.metadata as string));
         reply.send(replays);
@@ -764,7 +786,7 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
             return;
         }
 
-        const replays: Replays = server.replays.metadataUploadedBy(request.claims?.id);
+        const replays: Replays = server.replays.metadataUploadedBy(request.claims?.id, releaseParam(request));
         if (!replays || !replays.length) {
             reply.code(204);
             reply.send();

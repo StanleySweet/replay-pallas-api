@@ -53,22 +53,22 @@ class PlayerRepository {
 
     // One page of the replays a lobby player is in. The metadata is left out when the caller
     // already has the player's statistics cached.
-    replaysPage(lobbyPlayerId: number, withMetadata: boolean, offset: number): Replays {
+    replaysPage(lobbyPlayerId: number, withMetadata: boolean, offset: number, release: number | null = null): Replays {
         return this.db.prepare(`
         Select r.match_id ${withMetadata ? ", r.metadata" : ""} From lobby_players lp
         Inner Join replay_lobby_player_link rlp
         On lp.id = rlp.lobby_player_id
         Inner Join replays r
         On r.match_id = rlp.match_id
-        Where lp.id = @id
+        Where lp.id = @id And (@release IS NULL OR r.game_release = @release)
         LIMIT 50
         OFFSET @offset;
-        `).all({ "id": lobbyPlayerId, "offset": offset }) as Replays;
+        `).all({ "id": lobbyPlayerId, "offset": offset, release }) as Replays;
     }
 
     // Same, joined through users. The id is matched against users.id, and the account page passes the
     // lobby player id here, which looks wrong: kept as it was so the refactor changes no behaviour.
-    replaysPageForUser(lobbyPlayerId: number | undefined, withMetadata: boolean, offset: number): Replays {
+    replaysPageForUser(lobbyPlayerId: number | undefined, withMetadata: boolean, offset: number, release: number | null = null): Replays {
         return this.db.prepare(`
         Select r.match_id ${withMetadata ? ", r.metadata" : ""} From users u
         Inner Join lobby_players lp
@@ -77,10 +77,10 @@ class PlayerRepository {
         On lp.id = rlp.lobby_player_id
         Inner Join replays r
         On r.match_id = rlp.match_id
-        Where u.id = @id
+        Where u.id = @id And (@release IS NULL OR r.game_release = @release)
         LIMIT 50
         OFFSET @offset;
-        `).all({ "id": lobbyPlayerId, "offset": offset }) as Replays;
+        `).all({ "id": lobbyPlayerId, "offset": offset, release }) as Replays;
     }
 }
 

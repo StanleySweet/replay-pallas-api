@@ -14,7 +14,16 @@ const IN_CHUNK = 500;
 // with their blobs still packed: unpacking them is src/replays/blobCodec.ts's job, so a query that
 // does not need a blob never pays for it.
 class ReplayRepository {
+    // The releases that have replays, for the selector. Kept in memory and dropped whenever a replay
+    // is added or removed or gets its release set, so it is never stale and costs one query otherwise.
+    private releasesCache: { release: number, replays: number }[] | null = null;
+
     constructor(private readonly db: Database) { }
+
+    releases(): { release: number, replays: number }[] {
+        this.releasesCache ??= this.db.prepare('SELECT game_release AS release, COUNT(*) AS replays FROM replays WHERE game_release > 0 GROUP BY game_release ORDER BY game_release DESC').all() as { release: number, replays: number }[];
+        return this.releasesCache;
+    }
 
     count(): number {
         return (this.db.prepare('Select Count(*) as count From replays;').get() as { count: number }).count;
@@ -31,12 +40,13 @@ class ReplayRepository {
         return this.db.prepare('Select metadata, creation_date, match_id From replays;').all() as Replays;
     }
 
-    latestMetadata(): Replays {
-        return this.db.prepare(`SELECT match_id, metadata FROM replays ORDER BY creation_date desc LIMIT 10;`).all() as Replays;
+    // The three below take an optional 0 A.D. release; null keeps every replay.
+    latestMetadata(release: number | null = null): Replays {
+        return this.db.prepare(`SELECT match_id, metadata FROM replays WHERE (@release IS NULL OR game_release = @release) ORDER BY creation_date desc LIMIT 10;`).all({ release }) as Replays;
     }
 
-    allMetadataNewestFirst(): Replays {
-        return this.db.prepare('SELECT match_id, metadata FROM replays ORDER BY creation_date desc').all() as Replays;
+    allMetadataNewestFirst(release: number | null = null): Replays {
+        return this.db.prepare('SELECT match_id, metadata FROM replays WHERE (@release IS NULL OR game_release = @release) ORDER BY creation_date desc').all({ release }) as Replays;
     }
 
     // The replays a user uploaded, newest link first.
@@ -44,8 +54,8 @@ class ReplayRepository {
         return this.db.prepare('SELECT r.match_id, r.creation_date FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": userId }) as Replays;
     }
 
-    metadataUploadedBy(userId: number | undefined): Replays {
-        return this.db.prepare('SELECT r.match_id, metadata FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId ORDER BY rul.creation_date desc').all({ "userId": userId }) as Replays;
+    metadataUploadedBy(userId: number | undefined, release: number | null = null): Replays {
+        return this.db.prepare('SELECT r.match_id, metadata FROM replays r Inner Join replay_user_link rul On r.match_id = rul.match_id And rul.user_id = @userId Where (@release IS NULL OR r.game_release = @release) ORDER BY rul.creation_date desc').all({ "userId": userId, release }) as Replays;
     }
 
     getFiles(matchId: string): Replay | undefined {
@@ -71,6 +81,7 @@ class ReplayRepository {
 
     insert(row: { matchId: string, metadata: Buffer, filedata: Buffer, creationDate: string, gameRelease: number }): void {
         this.db.prepare(`INSERT INTO replays (match_id, metadata, filedata, creation_date, game_release) VALUES($matchId, $metadata, $filedata, $creationDate, $gameRelease)`).run(row);
+        this.releasesCache = null;
     }
 
     // The replays of one 0 A.D. release.
@@ -91,6 +102,7 @@ class ReplayRepository {
 
     setGameRelease(matchId: string, release: number): void {
         this.db.prepare('Update replays Set game_release = @release Where match_id = @match_id;').run({ match_id: matchId, release });
+        this.releasesCache = null;
     }
 
     updateMetadata(matchId: string, metadata: Buffer, modificationDate: string): void {
@@ -110,6 +122,7 @@ class ReplayRepository {
     // from the replay (migrations/012 and 013).
     delete(matchId: string): void {
         this.db.prepare("Delete From replays Where match_id = @match_id;").run({ "match_id": matchId });
+        this.releasesCache = null;
     }
 
     // Whether the user uploaded the replay: only the uploader or an administrator may delete it.

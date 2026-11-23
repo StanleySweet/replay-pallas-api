@@ -105,7 +105,11 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
         return;
     }
 
-    result.graph = get_chart_data(fastify, request.params.id, releaseParam(request));
+    // With ?release= the page covers that 0 A.D. release only: its graph, its replays and statistics computed
+    // from those replays. The statistics cache holds the figures over every replay, so it is neither read
+    // nor written then.
+    const release = releaseParam(request);
+    result.graph = get_chart_data(fastify, request.params.id, release);
 
     // users.nick has no UNIQUE constraint, and the duplicates that exist were registered
     // before create_user refused a taken nick, so this lookup is genuinely ambiguous. Pin it
@@ -123,9 +127,9 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
 
     const statisticData: RawPlayerStatisticsData[] = [];
 
-    const cache = getStatisticCache(fastify, request.params.id);
+    const cache = release === null ? getStatisticCache(fastify, request.params.id) : undefined;
     const hasStatisticCache = !!cache;
-    if (hasStatisticCache) {
+    if (cache) {
         result.AverageCPM = cache.average_cpm;
         result.WinRateRatio = cache.win_rate_ratio;
         result.MostUsedCmd = cache.most_used_cmd;
@@ -138,7 +142,7 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     let hasMoreData = true;
     result.replays = [];
     while (hasMoreData) {
-        const replays = fastify.players.replaysPage(request.params.id, !hasStatisticCache, offset);
+        const replays = fastify.players.replaysPage(request.params.id, !hasStatisticCache, offset, release);
         // Check if there's no more data
         if (replays.length === 0) {
             hasMoreData = false;
@@ -166,7 +170,8 @@ const get_user_details_by_lobby_user_id = async (request: GetUserByIdRequest, re
     if (!hasStatisticCache)
     {
         compute_statistics(result, statisticData);
-        cacheUserStatistics(fastify, request, result);
+        if (release === null)
+            cacheUserStatistics(fastify, request, result);
     }
 
     reply.send(result);
@@ -229,10 +234,11 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
         return;
     }
 
+    const release = releaseParam(request);
     const lobby_user = fastify.players.idForUser(request.params.id);
 
     if (lobby_user)
-        result.graph = get_chart_data(fastify, lobby_user, releaseParam(request));
+        result.graph = get_chart_data(fastify, lobby_user, release);
 
 
     result = Object.assign(result, user);
@@ -241,7 +247,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
 
     let cache : PlayerStatistics | undefined  = undefined;
 
-    if(lobby_user)
+    if(lobby_user && release === null)
         cache = getStatisticCache(fastify, lobby_user);
 
     const hasStatisticCache = !!cache;
@@ -258,7 +264,7 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     let hasMoreData = true;
     result.replays = [];
     while (hasMoreData) {
-        const replays = fastify.players.replaysPageForUser(lobby_user, !hasStatisticCache, offset);
+        const replays = fastify.players.replaysPageForUser(lobby_user, !hasStatisticCache, offset, release);
 
         // Check if there's no more data
         if (replays.length === 0) {
@@ -287,7 +293,8 @@ const get_user_details_by_id = async (request: GetUserByIdRequest, reply: Fastif
     if (!hasStatisticCache)
     {
         compute_statistics(result, statisticData);
-        cacheUserStatistics(fastify, request, result);
+        if (release === null)
+            cacheUserStatistics(fastify, request, result);
     }
 
     reply.send(result);

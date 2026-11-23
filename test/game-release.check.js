@@ -8,6 +8,7 @@ const D = require('better-sqlite3');
 const { migrate } = require('../dist/migrate');
 const { gameRelease, releaseOf, backfillGameRelease } = require('../dist/replays/gameRelease');
 const { ReplayRepository } = require('../dist/repositories/ReplayRepository');
+const { PlayerRepository } = require('../dist/repositories/PlayerRepository');
 const { packBlob } = require('../dist/replays/blobCodec');
 
 let passed = 0;
@@ -55,6 +56,41 @@ check('rows stored without a release are found and filled by the backfill', () =
 check('matchIdsForRelease keeps one release only', () => {
     assert.deepStrictEqual([...replays.matchIdsForRelease(26)], ['B']);
     assert.deepStrictEqual([...replays.matchIdsForRelease(99)], []);
+});
+
+
+check('the release list counts replays per release, newest first, and leaves out the unknown one', () => {
+    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 1 }, { release: 26, replays: 1 }]);
+});
+
+check('the cached release list follows inserts, deletes and a release being set', () => {
+    const before = replays.releases();
+    assert.strictEqual(replays.releases(), before, 'a second call is served from the cache');
+    replays.insert(row('D', { mods: [{ name: '0ad', version: '0.28.0' }] }, 28));
+    assert.deepStrictEqual(replays.releases().map(r => r.release), [28, 27, 26]);
+    replays.setGameRelease('D', 27);
+    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 2 }, { release: 26, replays: 1 }]);
+    replays.delete('D');
+    assert.deepStrictEqual(replays.releases(), [{ release: 27, replays: 1 }, { release: 26, replays: 1 }]);
+});
+
+check('the metadata lists can be limited to one release', () => {
+    assert.strictEqual(replays.allMetadataNewestFirst(null).length, 3);
+    assert.deepStrictEqual(replays.allMetadataNewestFirst(26).map(r => r.match_id), ['B']);
+    assert.deepStrictEqual(replays.latestMetadata(27).map(r => r.match_id), ['A']);
+    db.prepare("INSERT INTO users (nick, password, email, role) VALUES ('u', 'h', 'u@x', 1)").run();
+    replays.linkUploader(1, 'A'); replays.linkUploader(1, 'B');
+    assert.deepStrictEqual(replays.metadataUploadedBy(1, 26).map(r => r.match_id), ['B']);
+    assert.strictEqual(replays.metadataUploadedBy(1, null).length, 2);
+});
+
+check('a player page can be limited to one release', () => {
+    const players = new PlayerRepository(db);
+    const id = players.findOrCreateId('Alice');
+    replays.linkLobbyPlayer('A', id); replays.linkLobbyPlayer('B', id);
+    assert.strictEqual(players.replaysPage(id, false, 0).length, 2);
+    assert.deepStrictEqual(players.replaysPage(id, false, 0, 26).map(r => r.match_id), ['B']);
+    assert.strictEqual(players.replaysPage(id, false, 0, 99).length, 0);
 });
 
 console.log(passed + ' checks passed');
