@@ -51,3 +51,17 @@ Then('downloading {string} gives back metadata.json and commands.txt', async fun
     const names = new AdmZip(Buffer.from(await response.arrayBuffer())).getEntries().map(e => e.entryName).sort();
     assert.deepStrictEqual(names, ['commands.txt', 'metadata.json']);
 });
+
+// ---- suppressed players
+const PSEUDONYM = /Player~[0-9A-F]{8,}/;
+// The zip the API serves for a replay, unpacked: every file of it as one text.
+const unzipped = async (world, id) => {
+    const response = await fetch(`${world.api}/replays/${id}/zip`, { headers: { authorization: `Bearer ${world.token}` } });
+    assert.strictEqual(response.status, 200);
+    return new AdmZip(Buffer.from(await response.arrayBuffer())).getEntries().map(e => e.getData().toString('utf8')).join('\n');
+};
+When('the files of {string} are downloaded', async function (id) { this.files = { ...this.files, [id]: await unzipped(this, id) }; });
+Then('the files of {string} never mention {string}', function (id, nick) { assert.ok(!this.files[id].includes(nick), `found ${nick}`); });
+Then('the files of {string} mention a pseudonym', function (id) { assert.match(this.files[id], PSEUDONYM); });
+Then('the files of {string} and {string} hold the same pseudonym', function (a, b) { assert.strictEqual(this.files[a].match(PSEUDONYM)[0], this.files[b].match(PSEUDONYM)[0]); });
+Then('the lobby players do not include {string}', function (nick) { assert.ok(!this.last.body.some(p => p.nick === nick)); });

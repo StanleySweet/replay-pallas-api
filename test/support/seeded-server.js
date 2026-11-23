@@ -78,9 +78,11 @@ const startSeededServer = async (port = 18099) => {
     new LocalRatingsRatingsDB(cache, minifier).rebuild(cacheReplays);
     cache.markAsCurrent();
     new (dist('instant-glicko-2/Glicko2Manager.js').Glicko2Manager)(db).rebuild();
+    // Mallory asked to be erased: a replay she plays is stored under her pseudonym.
+    new (dist('replays/pseudonym.js').Suppression)(db, 'smoke-key').add('Mallory');
     db.close();
 
-    const server = spawn(process.execPath, [...process.execArgv, 'dist/index.js'], { cwd: work, env: { ...process.env, JOSE_SECRET: secret, API_PORT: String(port) }, stdio: ['ignore', 'ignore', 'inherit'] });
+    const server = spawn(process.execPath, [...process.execArgv, 'dist/index.js'], { cwd: work, env: { ...process.env, JOSE_SECRET: secret, PSEUDONYM_KEY: 'smoke-key', API_PORT: String(port) }, stdio: ['ignore', 'ignore', 'inherit'] });
     const url = `http://localhost:${port}`;
     for (let i = 0; i < 120; i++) {
         try { if ((await fetch(`${url}/swagger/json`)).ok) break; } catch { /* not listening yet */ }

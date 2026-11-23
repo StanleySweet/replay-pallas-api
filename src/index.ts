@@ -24,6 +24,7 @@ import { backfillGameRelease } from "./replays/gameRelease";
 import { ReplayRepository } from "./repositories/ReplayRepository";
 import { PlayerRepository } from "./repositories/PlayerRepository";
 import { UserRepository } from "./repositories/UserRepository";
+import { Suppression } from "./replays/pseudonym";
 import { LocalRatingsRepository } from "./repositories/LocalRatingsRepository";
 import { init_LocalRatings } from "./local-ratings/utilities/functions_utility";
 import { LocalRatingsController } from "./controllers/LocalRatingsController";
@@ -259,6 +260,9 @@ const start = async () => {
     server.players = new PlayerRepository(bdb);
     server.users = new UserRepository(bdb);
     server.localRatings = new LocalRatingsRepository(bdb);
+    server.suppression = new Suppression(bdb);
+    if (!server.suppression.enabled)
+        logger.warn("PSEUDONYM_KEY is not set: suppressed players are not pseudonymized on upload");
     server.rebuildJob = new MetadataRebuildJob();
     backfillGameRelease(server.replays);
 

@@ -7,6 +7,7 @@ import { Database as BetterDatabase } from "better-sqlite3";
 import { ReplayRepository } from "../repositories/ReplayRepository";
 import { PlayerRepository } from "../repositories/PlayerRepository";
 import { UserRepository } from "../repositories/UserRepository";
+import { Suppression } from "../replays/pseudonym";
 import { LocalRatingsRepository } from "../repositories/LocalRatingsRepository";
 import { MetadataRebuildJob } from "../replays/RebuildJob";
 
@@ -17,6 +18,7 @@ declare module 'fastify' {
         players: PlayerRepository
         users: UserRepository
         localRatings: LocalRatingsRepository
+        suppression: Suppression
         rebuildJob: MetadataRebuildJob
     }
 }

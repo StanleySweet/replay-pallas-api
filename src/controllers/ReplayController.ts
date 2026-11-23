@@ -4,6 +4,7 @@
  */
 
 import { rebuildDerivedData } from "../replays/derivedData";
+import { pseudonymize } from "../replays/pseudonym";
 import AdmZip, { IZipEntry } from "adm-zip";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { UploadReplayZipResponse, UploadReplayZipResponseSchema } from "../types/UploadReplayZipResponse";
@@ -173,6 +174,11 @@ const ReplayController: FastifyPluginCallback = (server, _, done) => {
         b.forEach(element => {
             result.filedata[element.Name] = element.Contents;
         });
+        // Players who asked to be erased are stored under their pseudonym, whoever uploads the game.
+        if (server.suppression.enabled) {
+            result.metadata = pseudonymize(result.metadata, server.suppression) as ReplayMetaData;
+            result.filedata = pseudonymize(result.filedata, server.suppression) as typeof result.filedata;
+        }
         return result;
     }
 
