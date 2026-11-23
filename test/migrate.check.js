@@ -29,7 +29,7 @@ check('a database migrated by the old runner only gets the newer files', () => {
     for (const f of fs.readdirSync(REAL).slice(0, 12)) fs.copyFileSync(path.join(REAL, f), path.join(old, f));
     const db = new D(':memory:');
     assert.strictEqual(migrate(db, old).length, 12);
-    assert.deepStrictEqual(migrate(db, REAL), ['local-cache-tables']);
+    assert.deepStrictEqual(migrate(db, REAL), fs.readdirSync(REAL).sort().slice(12).map(f => f.replace(/^\d+-|\.sql$/g, '')));
 });
 
 check('a failing migration leaves no table and no row', () => {

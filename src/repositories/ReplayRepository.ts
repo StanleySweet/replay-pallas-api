@@ -69,8 +69,22 @@ class ReplayRepository {
         return known;
     }
 
-    insert(row: { matchId: string, metadata: Buffer, filedata: Buffer, creationDate: string }): void {
-        this.db.prepare(`INSERT INTO replays (match_id, metadata, filedata, creation_date) VALUES($matchId, $metadata, $filedata, $creationDate)`).run(row);
+    insert(row: { matchId: string, metadata: Buffer, filedata: Buffer, creationDate: string, gameRelease: number }): void {
+        this.db.prepare(`INSERT INTO replays (match_id, metadata, filedata, creation_date, game_release) VALUES($matchId, $metadata, $filedata, $creationDate, $gameRelease)`).run(row);
+    }
+
+    // The replays of one 0 A.D. release.
+    matchIdsForRelease(release: number): Set<string> {
+        const rows = this.db.prepare('SELECT match_id FROM replays WHERE game_release = @release').all({ release }) as { match_id: string }[];
+        return new Set(rows.map(row => row.match_id));
+    }
+
+    withoutRelease(): { match_id: string, metadata: Buffer }[] {
+        return this.db.prepare('SELECT match_id, metadata FROM replays WHERE game_release IS NULL').all() as { match_id: string, metadata: Buffer }[];
+    }
+
+    setGameRelease(matchId: string, release: number): void {
+        this.db.prepare('Update replays Set game_release = @release Where match_id = @match_id;').run({ match_id: matchId, release });
     }
 
     updateMetadata(matchId: string, metadata: Buffer, modificationDate: string): void {

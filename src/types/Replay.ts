@@ -6,6 +6,7 @@
 import { ReplayMetaDataSchema } from "./ReplayMetaData";
 import { z } from "zod";
 import { packBlob } from "../replays/blobCodec";
+import { gameRelease } from "../replays/gameRelease";
 
 const ReplaySchema = z.object({
     metadata: ReplayMetaDataSchema,
@@ -55,7 +56,8 @@ const ToDbFormat = (replay: Replay) => {
         "matchId": replay.metadata.matchID,
         "metadata": packBlob(JSON.stringify(replay.metadata)),
         "filedata": packBlob(JSON.stringify(replay.filedata)),
-        "creationDate": formattedDate
+        "creationDate": formattedDate,
+        "gameRelease": gameRelease(replay.metadata) ?? 0
     };
 };
 

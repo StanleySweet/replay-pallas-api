@@ -14,6 +14,7 @@ import { ReplayMetaData } from "../types/ReplayMetaData";
 import { extract_commands_data, extract_commands_stats } from "../replays/commandsParser";
 import { update_LocalRatings } from "../local-ratings/utilities/functions_utility";
 import { isBrotliBlob, packBlob, unpackBlob } from "../replays/blobCodec";
+import { gameRelease } from "../replays/gameRelease";
 import EUserRole from "../enumerations/EUserRole";
 import { z } from "zod";
 import { MetadataSettings } from "../types/MetadataSettings";
@@ -38,6 +39,17 @@ function get_list_items_from_local_ratings(matchIds: string[], reply: FastifyRep
     reply.send(replays);
 }
 
+// ?release=28 keeps only the replays played on that 0 A.D. release. No parameter, or one that is not a
+// whole number, keeps everything.
+function filterByRelease(request: FastifyRequest, fastify: FastifyInstance, matchIds: string[]): string[] {
+    const release = Number((request.query as { release?: string } | undefined)?.release);
+    if (!Number.isInteger(release))
+        return matchIds;
+
+    const wanted = fastify.replays.matchIdsForRelease(release);
+    return matchIds.filter(id => wanted.has(id));
+}
+
 function get_latest_replays(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
     if ((request.claims?.role ?? 0) < EUserRole.READER) {
         reply.code(401);
@@ -47,7 +59,7 @@ function get_latest_replays(request: FastifyRequest, reply: FastifyReply, fastif
 
     let matchIds: string[] = Object.keys(fastify.replayDb.replayDatabase) as string[];
     matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a].date as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b].date as unknown as string).getTime());
-    get_list_items_from_local_ratings(matchIds.slice(0, 10), reply, fastify);
+    get_list_items_from_local_ratings(filterByRelease(request, fastify, matchIds).slice(0, 10), reply, fastify);
 }
 
 function get_my_replays_list_items(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
@@ -59,7 +71,7 @@ function get_my_replays_list_items(request: FastifyRequest, reply: FastifyReply,
 
     const replays: Replays = fastify.replays.idsUploadedBy(request.claims?.id);
     const matchIds: string[] = replays.sort((b, a) => new Date(a.creation_date as unknown as string).getTime() - new Date(b.creation_date as unknown as string).getTime()).map(a => a.match_id);
-    get_list_items_from_local_ratings(matchIds, reply, fastify);
+    get_list_items_from_local_ratings(filterByRelease(request, fastify, matchIds), reply, fastify);
 }
 
 function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance) {
@@ -71,7 +83,7 @@ function get_list_items(request: FastifyRequest, reply: FastifyReply, fastify: F
 
     let matchIds: string[] = Object.keys(fastify.replayDb.replayDatabase) as string[];
     matchIds = matchIds.sort((b, a) => new Date(fastify.replayDb.replayDatabase[a].date as unknown as string).getTime() - new Date(fastify.replayDb.replayDatabase[b].date as unknown as string).getTime());
-    get_list_items_from_local_ratings(matchIds, reply, fastify);
+    get_list_items_from_local_ratings(filterByRelease(request, fastify, matchIds), reply, fastify);
 }
 
 const BATCH_SIZE = 50;
@@ -189,6 +201,7 @@ function rebuild_replays_metadata(request: FastifyRequest, reply: FastifyReply, 
                 const currentDate = new Date();
                 const formattedDate = `${currentDate.getFullYear()}-${padNumber(currentDate.getMonth() + 1)}-${padNumber(currentDate.getDate())} ${padNumber(currentDate.getHours())}:${padNumber(currentDate.getMinutes())}:${padNumber(currentDate.getSeconds())}`;
                 fastify.replays.updateMetadata(replay.metadata.matchID, packBlob(JSON.stringify(replay.metadata)), formattedDate);
+                fastify.replays.setGameRelease(replay.metadata.matchID, gameRelease(replay.metadata) ?? 0);
             }
         }
 

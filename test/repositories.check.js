@@ -20,7 +20,7 @@ const glicko = new GlickoRepository(db), local = new LocalRatingsRepository(db);
 
 let passed = 0;
 const check = (name, fn) => { fn(); passed++; console.log('  ok  ' + name); };
-const row = id => ({ matchId: id, metadata: Buffer.from('m' + id), filedata: Buffer.from('f' + id), creationDate: '2026-01-01 00:00:00' });
+const row = id => ({ matchId: id, metadata: Buffer.from('m' + id), filedata: Buffer.from('f' + id), creationDate: '2026-01-01 00:00:00', gameRelease: 28 });
 
 check('replays: insert, read back, count', () => {
     replays.insert(row('A')); replays.insert(row('B'));

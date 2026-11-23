@@ -18,6 +18,7 @@ import { LobbyUserController } from "./controllers/LobbyUserController";
 import { EngineInstance } from "./types/Engine";
 import BetterDatabase from "better-sqlite3";
 import { migrate } from "./migrate";
+import { backfillGameRelease } from "./replays/gameRelease";
 import { ReplayRepository } from "./repositories/ReplayRepository";
 import { PlayerRepository } from "./repositories/PlayerRepository";
 import { UserRepository } from "./repositories/UserRepository";
@@ -256,6 +257,7 @@ const start = async () => {
     server.players = new PlayerRepository(bdb);
     server.users = new UserRepository(bdb);
     server.localRatings = new LocalRatingsRepository(bdb);
+    backfillGameRelease(server.replays);
 
     const { ratingsDb, replayDb, aliasDb } = init_LocalRatings();
 
