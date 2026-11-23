@@ -34,6 +34,7 @@ import fastifySchedulePlugin from "@fastify/schedule";
 import { HealthController } from "./controllers/HealthController";
 import { logger } from './logger';
 import { httpRequestDuration, httpRequestsTotal, register } from './prometheus';
+import { allowedOrigins, cookieToken, issueToken, sessionCookie, TOKEN_SECONDS } from "./users/session";
 import { checkLogin } from "./users/passwordHash";
 import EUserRole from "./enumerations/EUserRole";
 
@@ -41,10 +42,13 @@ import EUserRole from "./enumerations/EUserRole";
 // as one. Trust the one proxy in front (it appends the client address to X-Forwarded-For). The API port
 // is bound to loopback on the server, so nothing else can send that header.
 const server = fastify({ logger: true, trustProxy: +(process.env.TRUST_PROXY_HOPS ?? 1) });
+// Credentials (the session cookie) need a named origin: a browser refuses "*" with them. Requests with no
+// Origin (scripts, curl, server to server) are not browser cross-origin calls and pass. Request headers are
+// reflected, since "*" is not honoured either once credentials are on.
 server.register(cors, {
-    origin: '*', // Allowing requests from any origin
-    allowedHeaders: '*',
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] // Allowing any method
+    origin: (origin, callback) => callback(null, !origin || allowedOrigins().includes(origin)),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 });
 
 /* eslint-disable */
@@ -90,19 +94,30 @@ server.register(fastifySwaggerUi, {
 
 async function setupAuthent() {
     server.addHook("onRequest", async (request: FastifyRequest, reply: FastifyReply) => {
-        if (request.url.startsWith("/users/token") || (request.url === "/users/" && request.method === "POST") || request.url.startsWith("/swagger/ui") || request.url === "/swagger/json" || request.url === "/metrics")
+        if (request.url.startsWith("/users/token") || request.url === "/users/logout" || (request.url === "/users/" && request.method === "POST") || request.url.startsWith("/swagger/ui") || request.url === "/swagger/json" || request.url === "/metrics")
             return;
 
-        const token = request.headers.authorization?.replace("Bearer ", "") as string;
+        // A script sends the token as a Bearer header, the browser sends it as the cookie.
+        const bearer = request.headers.authorization?.replace("Bearer ", "");
+        const token = bearer || cookieToken(request.headers.cookie);
         if (!token) {
             reply.code(401);
+            reply.send();
+            return;
+        }
+        const fromCookie = !bearer;
+
+        // A cookie is sent by the browser whoever made the request: a page changing something must come
+        // from our own site. (SameSite=Lax already keeps other sites from sending it on a POST.)
+        if (fromCookie && !["GET", "HEAD", "OPTIONS"].includes(request.method) && !allowedOrigins().includes(request.headers.origin ?? "")) {
+            reply.code(403);
             reply.send();
             return;
         }
 
         // An expired or tampered token is a failed authentication, not a server
         // error: jwtVerify throws, and letting it escape answered 500.
-        let payload: PallasTokenPayload;
+        let payload: PallasTokenPayload & { exp?: number };
         try {
             ({ payload } = await jose.jwtVerify<PallasTokenPayload>(token, JOSE_SECRET, {
                 issuer: 'https://replay-pallas-api.wildfiregames.ovh',
@@ -114,6 +129,11 @@ async function setupAuthent() {
             reply.send();
             return;
         }
+
+        // Someone still working is not logged out in the middle of it: with less than half the lifetime
+        // left, the cookie is renewed.
+        if (fromCookie && payload.exp && payload.exp - Date.now() / 1000 < TOKEN_SECONDS / 2)
+            reply.header("set-cookie", sessionCookie(await issueToken({ role: payload.role, nick: payload.nick, id: payload.id })));
 
         request.claims = payload;
     });

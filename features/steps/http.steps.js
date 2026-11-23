@@ -95,3 +95,48 @@ When('a visitor at {string} logs in {int} times with a wrong password', async fu
 });
 When('a visitor at {string} logs in with a wrong password', async function (from) { this.last = await post(this, '/users/token', { email: 'carl@example.org', password: 'wrong' }, from); });
 Then('one of the answers is {int}', function (status) { assert.ok(this.answers.includes(status), this.answers.join(',')); });
+
+// ---- the session cookie
+const jose = require('jose');
+const ORIGIN = 'https://replay-pallas.wildfiregames.ovh';
+// A request as a browser makes it: the cookie and an Origin, no Authorization header.
+const asBrowser = async (world, url, origin, options = {}) => {
+    const response = await fetch(world.api + url, { ...options, headers: { origin, ...(world.cookieValue ? { cookie: `pallas_token=${world.cookieValue}` } : {}), ...(options.headers ?? {}) } });
+    const text = await response.text();
+    world.lastHeaders = response.headers;
+    let body = text;
+    try { body = JSON.parse(text); } catch { /* not JSON */ }
+    return world.last = { status: response.status, body };
+};
+const takeCookie = (world, response) => { world.setCookie = response.headers.get('set-cookie') ?? ''; world.cookieValue = world.setCookie.match(/pallas_token=([^;]*)/)?.[1]; };
+const browserLogin = async function (email, password) {
+    const response = await fetch(this.api + '/users/token', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '198.51.100.20' }, body: JSON.stringify({ email, password, legacy: 'hash' }) });
+    takeCookie(this, response);
+    this.last = { status: response.status, body: await response.json().catch(() => null) };
+};
+When('{string} logs in with the password {string} for the cookie', browserLogin);
+Given('Alice is logged in in a browser', async function () { await browserLogin.call(this, 'alice@example.org', 'alice-pw'); });
+Then('the cookie is httpOnly, secure and same-site', function () { assert.match(this.setCookie, /^pallas_token=[^;]+; HttpOnly; Secure; SameSite=Lax; Path=\/; Max-Age=7200$/); });
+When('a browser from {string} asks for {string} with its cookie', async function (origin, url) { await asBrowser(this, url, origin); });
+When('a browser from {string} changes something with its cookie', async function (origin) {
+    await asBrowser(this, '/replays/suppress', origin, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nick: 'nobody' }) });
+});
+Then('the answer is not {int}', function (status) { assert.notStrictEqual(this.last.status, status); });
+When('a browser from {string} sends a preflight', async function (origin) {
+    const response = await fetch(this.api + '/replays/releases', { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'GET', 'access-control-request-headers': 'authorization' } });
+    this.preflight = { allowOrigin: response.headers.get('access-control-allow-origin'), credentials: response.headers.get('access-control-allow-credentials') };
+});
+Then('no origin is allowed', function () { assert.strictEqual(this.preflight.allowOrigin, null); });
+Then('that origin is allowed with credentials', function () { assert.deepStrictEqual(this.preflight, { allowOrigin: ORIGIN, credentials: 'true' }); });
+When('the browser logs out', async function () {
+    const response = await fetch(this.api + '/users/logout', { method: 'POST', headers: { origin: ORIGIN } });
+    this.setCookie = response.headers.get('set-cookie') ?? '';
+    this.last = { status: response.status, body: null };
+});
+Then('the cookie is cleared', function () { assert.match(this.setCookie, /^pallas_token=; .*Max-Age=0$/); });
+Given('a cookie that has {int} minutes left', async function (minutes) {
+    this.cookieValue = await new jose.SignJWT({ role: 1, nick: 'Alice', id: 2 }).setProtectedHeader({ alg: 'HS256' }).setIssuedAt()
+        .setIssuer('https://replay-pallas-api.wildfiregames.ovh').setAudience('https://replay-pallas-api.wildfiregames.ovh')
+        .setExpirationTime(`${minutes}m`).sign(new TextEncoder().encode('smoke-secret'));
+});
+Then('the cookie is renewed', function () { assert.match(this.lastHeaders.get('set-cookie') ?? '', /^pallas_token=[^;]+; HttpOnly/); });

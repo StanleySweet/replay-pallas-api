@@ -4,14 +4,13 @@
  */
 
 import { checkLogin, hashPassword } from "../users/passwordHash";
+import { clearedCookie, issueToken, sessionCookie } from "../users/session";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { AddUserRequest, AddUserSchema, DeleteUserByIdRequest, EloGraph, GetUserByIdRequest, GlickoElo, LatestUser, LatestUsersSchema, LoginUserRequest, SetPermissionsRequest, User, UserDetail, UserDetailSchema, UserSchema, UsersSchema } from "../types/User";
 import { z } from "zod";
-import * as jose from 'jose';
 import EUserRole from "../enumerations/EUserRole";
 import { PallasTokenPayload, PallasUserToken, PallasUserTokenSchema } from "../types/PallasToken";
-import { JOSE_ALG as alg, JOSE_SECRET } from "../project_globals";
 import { mode } from "../Utils";
 import { unpackBlob } from "../replays/blobCodec";
 import { releaseParam } from "../replays/releaseParam";
@@ -319,14 +318,8 @@ const login = async (request: LoginUserRequest, reply: FastifyReply, fastify: Fa
             'nick': users[0].nick,
             'id': users[0].id
         };
-        const jwt: string = await new jose.SignJWT(payload)
-            .setProtectedHeader({ alg })
-            .setIssuedAt()
-            .setIssuer('https://replay-pallas-api.wildfiregames.ovh')
-            .setAudience('https://replay-pallas-api.wildfiregames.ovh')
-            .setExpirationTime('2h')
-            .sign(JOSE_SECRET);
-
+        const jwt: string = await issueToken(payload);
+        reply.header('set-cookie', sessionCookie(jwt));
 
         const result: PallasUserToken = {
             role: users[0].role,
@@ -526,6 +519,13 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
         }
     }, ((request: FastifyRequest, reply: FastifyReply) => get_latest_users(request, reply, fastify)));
 
+
+    // The cookie is httpOnly, so only the server can clear it.
+    fastify.post("/logout", { schema: { ...schemaCommon } }, (_request: FastifyRequest, reply: FastifyReply) => {
+        reply.header('set-cookie', clearedCookie());
+        reply.code(204);
+        reply.send();
+    });
 
     fastify.post("/token", {
         config: { rateLimit: authRateLimit },
