@@ -28,6 +28,22 @@ class World {
         };
     }
 
+
+    // A replay as uploaded: its commands.txt, and a stored metadata that is out of date (no counts yet).
+    uploadedReplay(replays, id, version, aliceOrders) {
+    const { packBlob } = this.dist('replays/blobCodec.js');
+    const seats = [{ Name: 'Alice (1500)', Team: 0 }, { Name: 'Bob (1400)', Team: 1 }, { Name: 'Petra', Team: 1, AI: true }];
+    const lines = ['start ' + JSON.stringify({ settings: { PlayerData: seats }, mapPreview: 'a:b:maps/x.png', mods: [{ name: '0ad', version }] })];
+    for (let turn = 0; turn < Math.max(aliceOrders, 1); turn++) {
+        lines.push(`turn ${turn} 200`);
+        if (turn < aliceOrders) lines.push('cmd 1 {"type":"walk"}');
+        if (turn < 1) lines.push('cmd 2 {"type":"attack"}');
+        lines.push('end');
+    }
+    const stored = { matchID: id, timestamp: 1700000000, mods: [{ name: '0ad', version }], playerStates: [{ state: 'gaia' }, { state: 'won' }, { state: 'defeated' }, { state: 'defeated' }], settings: { PlayerData: seats.map(s => ({ ...s, NameWithoutRating: s.Name.split(' (')[0] })) } };
+    replays.insert({ matchId: id, creationDate: '2026-01-01 00:00:00', gameRelease: 0, metadata: packBlob(JSON.stringify(stored)), filedata: packBlob(JSON.stringify({ 'commands.txt': lines.join('\r\n') })) });
+}
+
     // One score weight is enough to give the players different ratings.
     scoreName() {
         const options = require(path.join(root, 'src', 'local-ratings', 'types', 'options.json'));
