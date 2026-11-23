@@ -4,10 +4,9 @@
 //
 // Background: POST /users is unauthenticated and users.nick has no UNIQUE constraint
 // (migration 002, unlike lobby_players.nick in 003 which does). Duplicate registrations
-// therefore existed until now: the local DB holds 3 rows for 'sanafur' and 2 for 'SaidRdz'.
-// There are NO case-fold collisions in lobby_players (355 rows) or in the ratings cache
-// (328 keys), so the split-nick premise did not hold; the reachable hole was duplicate
-// registration of the same string.
+// therefore existed until now (a local copy held 3 rows for 'sanafur' and 2 for 'SaidRdz').
+// Those copies had no case-fold collisions, so the reachable hole was duplicate registration of the
+// same string. That is audited on real data by test/audit-nicks.js.
 //
 // Run: node test/nick-identity.check.js
 const assert = require('assert');
@@ -115,43 +114,15 @@ check('the same ambiguity in the metrics Basic auth is left alone, deliberately'
         'the metrics lookup changed; re-check whether that was intended');
 });
 
-// ------------------------------------------------------------------ the premise
-const realDbPath = path.join(__dirname, '..', 'dist', 'cache', 'replay-pallas.sqlite3');
-if (fs.existsSync(realDbPath)) {
-    const real = new D(realDbPath, { readonly: true });
-    check('the split-nick premise is false on the real database', () => {
-        const lp = real.prepare('SELECT count(*) c, count(DISTINCT lower(nick)) d FROM lobby_players').get();
-        assert.strictEqual(lp.c, lp.d, `lobby_players has ${lp.c - lp.d} case-fold collision(s)`);
-    });
-    check('the real duplicates are exact strings, not case variants', () => {
-        const groups = real.prepare(`SELECT lower(nick) f, count(*) n, count(DISTINCT nick) v
-                                      FROM users GROUP BY f HAVING n > 1`).all();
-        for (const g of groups) {
-            // v === 1 means every row in the group holds the exact same string, so these are
-            // plain duplicate registrations. A v > 1 would mean genuine case variants, which
-            // would need a different fix (canonicalising to one spelling).
-            assert.strictEqual(g.v, 1,
-                `${g.f} holds ${g.v} distinct spellings, so it needs canonicalising, not just a guard`);
-        }
-        if (groups.length === 0) {
-            // Only a database that holds the old duplicate registrations can show this. A clean or fresh
-            // one has none, which is the state the guard is meant to keep, so it is not a failure.
-            console.log('  skip  no duplicate nicks in this database, nothing to compare spellings of');
-            return;
-        }
-        // And no hidden whitespace or non-ASCII anywhere that would defeat NOCASE.
-        const dirty = real.prepare(`SELECT count(*) c FROM users WHERE nick <> trim(nick) OR nick GLOB '*[^ -~]*'`).get().c;
-        assert.strictEqual(dirty, 0, `${dirty} nick(s) carry whitespace or non-ASCII`);
-    });
-    check('migration 002 is where the missing UNIQUE lives', () => {
-        const sql = fs.readFileSync(path.join(migrations, '002-users.sql'), 'utf8');
-        assert.ok(/"nick"\s+text\s+NOT NULL/i.test(sql), 'users.nick column not found');
-        assert.ok(!/UNIQUE/i.test(sql.match(/"nick"[^\n]*/)[0]), 'users.nick already has UNIQUE');
-        const lobby = fs.readFileSync(path.join(migrations, '003-lobby_users.sql'), 'utf8');
-        assert.ok(/UNIQUE/i.test(lobby.match(/"nick"[^\n]*/)[0]), 'lobby_players.nick is not UNIQUE either');
-    });
-    real.close();
-}
+// The duplicate-registration premise is a property of the data, not of the code. It is checked by
+// test/audit-nicks.js against whichever database you point it at.
+check('migration 002 is where the missing UNIQUE lives', () => {
+    const sql = fs.readFileSync(path.join(migrations, '002-users.sql'), 'utf8');
+    assert.ok(/"nick"\s+text\s+NOT NULL/i.test(sql), 'users.nick column not found');
+    assert.ok(!/UNIQUE/i.test(sql.match(/"nick"[^\n]*/)[0]), 'users.nick already has UNIQUE');
+    const lobby = fs.readFileSync(path.join(migrations, '003-lobby_users.sql'), 'utf8');
+    assert.ok(/UNIQUE/i.test(lobby.match(/"nick"[^\n]*/)[0]), 'lobby_players.nick is not UNIQUE either');
+});
 
 db.close();
 console.log(`\n${passed} passed, ${process.exitCode ? '1 FAILED' : 'all green'}`);
