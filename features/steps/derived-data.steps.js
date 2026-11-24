@@ -38,3 +38,7 @@ Then('the steps ran in this order: replays, local ratings, releases, glicko', fu
 Then('the timer fired before the last step ran', function () { assert.strictEqual(this.timerFiredBefore, true); });
 Then('the rebuild is rejected with {string}', function (message) { assert.strictEqual(this.error?.message, message); });
 Then('the releases and glicko steps did not run', function () { assert.deepStrictEqual(this.ran, ['replays', 'local ratings']); });
+const lastSuccess = async world => (await world.dist('prometheus.js').rebuildLastSuccess.get()).values.find(v => v.labels.stage === 'derived-data')?.value;
+Given('no success was recorded for the derived data', function () { this.dist('prometheus.js').rebuildLastSuccess.reset(); });
+When('the derived data is marked current at boot', function () { this.dist('replays/derivedData.js').markDerivedDataCurrent('3:7'); });
+Then('the last success of the stage {string} is now', async function (stage) { assert.strictEqual(stage, 'derived-data'); assert.ok(Math.abs(await lastSuccess(this) - Date.now() / 1000) < 5); });

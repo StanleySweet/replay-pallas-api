@@ -21,9 +21,12 @@ const MAX_AGE_MS = 24 * 3600 * 1000;
 let current: string | null = null;
 let currentAt = 0;
 
+// Also the boot path: a start that finds the cache current counts as a success, or the staleness alert
+// would fire after every deploy until the first forced refresh a day later.
 function markDerivedDataCurrent(signature: string): void {
     current = signature;
     currentAt = Date.now();
+    rebuildLastSuccess.labels("derived-data").setToCurrentTime();
 }
 
 // The in-memory data derived from the replays: the local ratings caches and the Glicko sets. Each
@@ -61,7 +64,6 @@ async function rebuildDerivedData(server: DerivedDataSources, signature: string,
     }
 
     markDerivedDataCurrent(signature);
-    rebuildLastSuccess.labels("derived-data").setToCurrentTime();
     return durations;
 }
 

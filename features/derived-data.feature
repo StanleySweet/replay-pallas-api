@@ -41,3 +41,8 @@ Feature: Refreshing the data derived from the replays
     Given the local ratings step fails
     When the derived data is rebuilt
     Then the failure counter of the stage "local ratings" went up by 1
+
+  Scenario: A boot that finds the data current counts as a success for the staleness alert
+    Given no success was recorded for the derived data
+    When the derived data is marked current at boot
+    Then the last success of the stage "derived-data" is now
