@@ -9,6 +9,8 @@ import { LatestUser, User, UserDetail } from "../types/User";
 import { PlayerStatistics } from "../types/PlayerStatistics";
 import EUserRole from "../enumerations/EUserRole";
 
+type ApiKeyInfo = { id: number, label: string, role: EUserRole, creation_date: string, expires_at: string | null, last_used_at: string | null };
+
 type StatisticsRow = {
     total_played_time: number,
     match_count: number,
@@ -52,6 +54,32 @@ class UserRepository {
     // Moves an account to the server-side hash, and drops the old one that could log in by itself.
     setPasswordHash(id: number, passwordHash: string): void {
         this.db.prepare("UPDATE users SET password_hash = @passwordHash, password = '' WHERE id = @id").run({ id, passwordHash });
+    }
+
+    // API keys. Only the hash is stored (src/users/apiKey.ts).
+    createApiKey(userId: number, label: string, keyHash: string, role: EUserRole, expiresAt: string | null): number {
+        return Number(this.db.prepare("INSERT INTO api_keys (user_id, label, key_hash, role, expires_at) VALUES (@userId, @label, @keyHash, @role, @expiresAt)")
+            .run({ userId, label, keyHash, role, expiresAt }).lastInsertRowid);
+    }
+
+    apiKeysOf(userId: number): ApiKeyInfo[] {
+        return this.db.prepare("SELECT id, label, role, creation_date, expires_at, last_used_at FROM api_keys WHERE user_id = @userId ORDER BY id").all({ userId }) as ApiKeyInfo[];
+    }
+
+    // True when a key of that user was deleted.
+    revokeApiKey(userId: number, id: number): boolean {
+        return this.db.prepare("DELETE FROM api_keys WHERE id = @id AND user_id = @userId").run({ id, userId }).changes > 0;
+    }
+
+    // The claims a key gives: its role, lowered to the owner's if that was lowered since. Undefined when the
+    // key is unknown or expired. last_used_at moves at most once a minute, so a busy tool does not write on every call.
+    claimsForApiKey(keyHash: string): { id: number, nick: string, role: EUserRole } | undefined {
+        const row = this.db.prepare(`SELECT k.id AS key_id, u.id, u.nick, MIN(k.role, u.role) AS role FROM api_keys k JOIN users u ON u.id = k.user_id
+            WHERE k.key_hash = @keyHash AND (k.expires_at IS NULL OR k.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).get({ keyHash }) as { key_id: number, id: number, nick: string, role: EUserRole } | undefined;
+        if (!row?.key_id)
+            return undefined;
+        this.db.prepare("UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = @id AND (last_used_at IS NULL OR last_used_at < datetime('now', '-1 minute'))").run({ id: row.key_id });
+        return { id: row.id, nick: row.nick, role: row.role };
     }
 
     latest(): LatestUser[] {

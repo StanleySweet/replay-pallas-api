@@ -36,6 +36,7 @@ import { logger } from './logger';
 import { httpRequestDuration, httpRequestsTotal, register } from './prometheus';
 import { allowedOrigins, cookieToken, issueToken, sessionCookie, TOKEN_SECONDS } from "./users/session";
 import { checkLogin } from "./users/passwordHash";
+import { hashApiKey, isApiKey } from "./users/apiKey";
 import EUserRole from "./enumerations/EUserRole";
 
 // Behind Apache every request comes from the proxy's address, so the rate limits would count all users
@@ -112,6 +113,19 @@ async function setupAuthent() {
         if (fromCookie && !["GET", "HEAD", "OPTIONS"].includes(request.method) && !allowedOrigins().includes(request.headers.origin ?? "")) {
             reply.code(403);
             reply.send();
+            return;
+        }
+
+        // An API key is looked up, not verified: revoking it is deleting its row.
+        if (isApiKey(token)) {
+            const claims = server.users.claimsForApiKey(hashApiKey(token));
+            if (!claims) {
+                reply.code(401);
+                reply.send();
+                return;
+            }
+            request.claims = claims;
+            request.viaApiKey = true;
             return;
         }
 

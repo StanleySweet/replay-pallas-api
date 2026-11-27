@@ -4,6 +4,7 @@
  */
 
 import { checkLogin, hashPassword } from "../users/passwordHash";
+import { hashApiKey, newApiKey } from "../users/apiKey";
 import { clearedCookie, issueToken, sessionCookie } from "../users/session";
 import { FastifyInstance, FastifyPluginCallback, FastifyReply, FastifyRequest } from "fastify";
 import { zodToJsonSchema } from "zod-to-json-schema";
@@ -455,6 +456,46 @@ const create_user = async (request: AddUserRequest, reply: FastifyReply, fastify
     }
 };
 
+const MAX_API_KEYS = 5;
+const CreateApiKeySchema = z.object({
+    label: z.string().trim().min(1).max(60),
+    role: z.union([z.literal(EUserRole.READER), z.literal(EUserRole.CONTRIBUTOR)]),
+    expires_in_days: z.number().int().min(1).max(3650).optional()
+});
+
+// Keys are managed with a login only: a key cannot make or list keys, so a leaked one cannot outlive its revocation.
+const apiKeyOwner = (request: FastifyRequest, reply: FastifyReply): number | undefined => {
+    if (!request.claims || request.viaApiKey || request.claims.role < EUserRole.READER) {
+        reply.code(401);
+        reply.send();
+        return undefined;
+    }
+    return request.claims.id;
+};
+
+const create_api_key = (request: FastifyRequest, reply: FastifyReply, fastify: FastifyInstance): void => {
+    const userId = apiKeyOwner(request, reply);
+    if (userId === undefined)
+        return;
+    const body = CreateApiKeySchema.safeParse(request.body);
+    if (!body.success || body.data.role > (request.claims?.role ?? 0)) {
+        reply.code(400);
+        reply.send();
+        return;
+    }
+    if (fastify.users.apiKeysOf(userId).length >= MAX_API_KEYS) {
+        reply.code(409);
+        reply.send();
+        return;
+    }
+    const key = newApiKey();
+    const expiresAt = body.data.expires_in_days ? new Date(Date.now() + body.data.expires_in_days * 86400000).toISOString() : null;
+    const id = fastify.users.createApiKey(userId, body.data.label, hashApiKey(key), body.data.role, expiresAt);
+    reply.code(201);
+    // The only time the key is shown.
+    reply.send({ id, key, label: body.data.label, role: body.data.role, expires_at: expiresAt });
+};
+
 // Login and registration are open to everyone, so they get a much stricter limit than the rest of the API.
 const authRateLimit = { max: +(process.env.AUTH_RATE_MAX ?? 10), timeWindow: '15 minutes' };
 
@@ -578,6 +619,22 @@ const UserController: FastifyPluginCallback = (fastify, _, done) => {
         }
     }, (request: GetUserByIdRequest, reply: FastifyReply) => get_user_details_by_lobby_user_id(request, reply, fastify));
 
+
+    fastify.post("/api-keys", { schema: { ...schemaCommon } }, (request: FastifyRequest, reply: FastifyReply) => create_api_key(request, reply, fastify));
+
+    fastify.get("/api-keys", { schema: { ...schemaCommon } }, (request: FastifyRequest, reply: FastifyReply) => {
+        const userId = apiKeyOwner(request, reply);
+        if (userId !== undefined)
+            reply.send(fastify.users.apiKeysOf(userId));
+    });
+
+    fastify.delete("/api-keys/:id", { schema: { params: zodToJsonSchema(z.object({ id: z.number() })), ...schemaCommon } }, (request: FastifyRequest<{ Params: { id: number } }>, reply: FastifyReply) => {
+        const userId = apiKeyOwner(request, reply);
+        if (userId === undefined)
+            return;
+        reply.code(fastify.users.revokeApiKey(userId, request.params.id) ? 204 : 404);
+        reply.send();
+    });
 
     fastify.post("/set-permissions", {
         schema: {

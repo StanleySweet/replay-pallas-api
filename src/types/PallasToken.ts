@@ -27,6 +27,8 @@ type PallasTokenPayload = z.infer<typeof PallasTokenPayloadSchema>;
 declare module 'fastify' {
     interface FastifyRequest {
         claims?: PallasTokenPayload
+        // Set when the request was authenticated with an API key rather than a login.
+        viaApiKey?: boolean
     }
 }
 
